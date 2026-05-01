@@ -4,7 +4,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, writeBatch } from 'firebase/firestore';
 
 // --- הגדרות מערכת ---
-const APP_VERSION = "1.25";
+const APP_VERSION = "1.26";
 const firebaseConfigStr = process.env.NEXT_PUBLIC_FIREBASE_CONFIG;
 const firebaseConfig = firebaseConfigStr ? JSON.parse(firebaseConfigStr) : {};
 const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
@@ -34,7 +34,6 @@ export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
     const [localUsers, setLocalUsers] = useState([]);
     const [localCourses, setLocalCourses] = useState([]);
-    const [localInstitutions, setLocalInstitutions] = useState([]);
     const [lang, setLang] = useState('he');
     const [activeSection, setActiveSection] = useState('courses');
     const [adminTab, setAdminTab] = useState('approvals');
@@ -45,10 +44,19 @@ export default function App() {
 
     const [loginUser, setLoginUser] = useState('');
     const [loginPass, setLoginPass] = useState('');
-    const [instData, setInstData] = useState({ name: '', symbol: '', type: 'ציבורי', courses: [] });
-    const [courseData, setCourseData] = useState({ name: '', field: '', fromGrade: 'א', toGrade: 'יב', equipment: '', type: 'מיומנויות', summary: '', goals: '', successGoals: '', skills: '', activeLearning: '', prerequisites: '' });
-    const [aiLoading, setAiLoading] = useState(null);
+    
+    // רשימות דינמיות
+    const [subjects, setSubjects] = useState(['בינה מלאכותית', 'תכנות', 'מדעים', 'מתמטיקה', 'אנגלית']);
+    const [equipments, setEquipments] = useState(['מחשב', 'טאבלט', 'מעבדה', 'ערכת רובוטיקה']);
+    const [showNewSubject, setShowNewSubject] = useState(false);
+    const [showNewEquip, setShowNewEquip] = useState(false);
 
+    const [courseData, setCourseData] = useState({
+        name: '', field: 'בינה מלאכותית', fromGrade: 'א', toGrade: 'יב', equipment: 'מחשב', type: 'מיומנויות',
+        summary: '', goals: '', successGoals: '', skills: '', activeLearning: '', prerequisites: ''
+    });
+
+    const [aiLoading, setAiLoading] = useState(null);
     const audioRef = useRef(null);
 
     useEffect(() => {
@@ -62,7 +70,6 @@ export default function App() {
         if (!authReady || !db) return;
         onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), s => setLocalUsers(s.docs.map(d => ({...d.data(), id: d.id}))));
         onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'courses'), s => setLocalCourses(s.docs.map(d => ({...d.data(), id: d.id}))));
-        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'institutions'), s => setLocalInstitutions(s.docs.map(d => ({...d.data(), id: d.id}))));
     }, [authReady]);
 
     const playBoom = () => {
@@ -84,48 +91,60 @@ export default function App() {
 
     const handleLogin = (e) => {
         e.preventDefault();
-        const isAdmin = (loginUser === 'rami') && (loginPass === '1234');
-        if (isAdmin) setCurrentUser({ username: 'rami', firstName: 'רמי', role: 'admin', status: 'approved' });
-        else {
+        if (loginUser === 'rami' && loginPass === '1234') {
+            setCurrentUser({ username: 'rami', firstName: 'רמי', role: 'admin', status: 'approved' });
+        } else {
             const found = localUsers.find(x => x.username === loginUser && x.password === loginPass);
             if (found) setCurrentUser(found);
             else { playBoom(); setToastMsg("פרטים שגויים"); setTimeout(()=>setToastMsg(''), 2000); }
         }
     };
 
-    const bulkCreateUsers = async () => {
-        if (!db) return;
-        const batch = writeBatch(db);
-        for (let i = 1; i <= 100; i++) {
-            const uId = `std-${Date.now()}-${i}`;
-            batch.set(doc(db, 'artifacts', appId, 'public', 'data', 'users', uId), {
-                username: `student${i}`, password: `1234`, firstName: `תלמיד`, lastName: `${i}`,
-                role: 'student', status: 'approved', id: uId
-            });
+    const handleAIGen = async (field, label) => {
+        if (!geminiApiKey || !courseData.name) {
+            setToastMsg("יש להזין שם קורס קודם");
+            setTimeout(()=>setToastMsg(''), 2000);
+            return;
         }
-        await batch.commit();
-        setToastMsg("100 חשבונות נוצרו!");
-    };
-
-    const handleAIGen = async (field, prompt) => {
-        if (!geminiApiKey || !courseData.name) return;
         setAiLoading(field);
         try {
             const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: `כתוב ${prompt} בעברית לקורס ${courseData.name}.` }] }] })
+                body: JSON.stringify({ contents: [{ parts: [{ text: `כתוב ${label} מקצועי ומפורט בעברית עבור קורס בשם "${courseData.name}" המיועד לכיתות ${courseData.fromGrade}-${courseData.toGrade}.` }] }] })
             });
             const data = await res.json();
-            setCourseData(prev => ({...prev, [field]: data.candidates[0].content.parts[0].text.trim()}));
-        } catch (e) {}
+            const resultText = data.candidates[0].content.parts[0].text;
+            setCourseData(prev => ({...prev, [field]: resultText.trim()}));
+        } catch (e) {
+            setToastMsg("שגיאה בייצור תוכן");
+            setTimeout(()=>setToastMsg(''), 2000);
+        }
         setAiLoading(null);
+    };
+
+    const saveCourse = async () => {
+        if (!courseData.name) {
+            setToastMsg("חובה להזין שם קורס");
+            setTimeout(()=>setToastMsg(''), 2000);
+            return;
+        }
+        try {
+            const id = "c-" + Date.now();
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', id), { ...courseData, id });
+            setToastMsg("הקורס נשמר בהצלחה!");
+            setActiveModal(null);
+            setCourseData({ name: '', field: 'בינה מלאכותית', fromGrade: 'א', toGrade: 'יב', equipment: 'מחשב', type: 'מיומנויות', summary: '', goals: '', successGoals: '', skills: '', activeLearning: '', prerequisites: '' });
+        } catch (e) {
+            setToastMsg("שגיאה בשמירה למסד הנתונים");
+        }
+        setTimeout(()=>setToastMsg(''), 3000);
     };
 
     const t = (key) => i18n[lang][key] || key;
 
     return (
-        <div dir={(lang === 'he' || lang === 'ar') ? 'rtl' : 'ltr'} className={`min-h-screen font-sans transition-colors duration-500 ${currentUser ? 'bg-white text-slate-900' : 'bg-slate-950 text-white'}`}>
+        <div dir={(lang === 'he' || lang === 'ar') ? 'rtl' : 'ltr'} className={`min-h-screen font-sans transition-all duration-700 ${currentUser ? 'bg-white text-slate-900' : 'bg-slate-950 text-white'}`}>
             <style>{`
                 @keyframes shake { 0%, 100% {transform: translateX(0);} 25% {transform: translateX(-10px);} 75% {transform: translateX(10px);} }
                 .shake-anim { animation: shake 0.15s ease-in-out 0s 2; border: 2px solid red !important; }
@@ -136,6 +155,7 @@ export default function App() {
             <div className="version-label">V {APP_VERSION}</div>
 
             {!currentUser ? (
+                /* מסך כניסה */
                 <div className="relative min-h-screen flex items-center justify-center p-4">
                     {videoPlaying && (
                         <div className="fixed inset-0 z-0 pointer-events-none">
@@ -154,7 +174,7 @@ export default function App() {
                                 <button onClick={() => setLang('ru')} className={`w-11 h-11 rounded-2xl font-black text-xs border ${lang === 'ru' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>RU</button>
                             </div>
                         </div>
-                        <img src={LOGO_URL} alt="Logo" className="h-28 mx-auto mb-6 rounded-2xl shadow-md" />
+                        <img src={LOGO_URL} alt="Logo" className="h-28 mx-auto mb-6 rounded-[2rem] shadow-lg" />
                         <h1 className="text-4xl font-black text-center text-slate-900 mb-2">{t('login_title')}</h1>
                         <p className="text-slate-500 text-center font-bold mb-10">{t('login_subtitle')}</p>
                         <form onSubmit={handleLogin} className="space-y-4">
@@ -168,6 +188,7 @@ export default function App() {
                     </button>
                 </div>
             ) : (
+                /* מערכת LMS (רקע לבן) */
                 <div className="flex flex-col min-h-screen">
                     <nav className="bg-white border-b px-8 py-4 flex justify-between items-center sticky top-0 z-40 shadow-sm">
                         <div className="flex items-center gap-4">
@@ -177,18 +198,18 @@ export default function App() {
                         </div>
                         <div className="flex items-center gap-4">
                             <div className="text-sm font-black bg-slate-100 px-4 py-2 rounded-full text-slate-900">
-                                {currentUser.username === 'rami' && <span className="ml-2">👑</span>}
+                                {currentUser.username === 'rami' && <span className="ml-1">👑</span>}
                                 {currentUser.firstName} {currentUser.lastName}
                             </div>
                             <button onClick={()=>setCurrentUser(null)} className="text-red-500 font-black text-xs uppercase bg-red-50 p-2 rounded-lg">יציאה</button>
                         </div>
                     </nav>
+
                     <main className="p-8 max-w-7xl mx-auto w-full">
                         {activeSection === 'courses' && (
                             <div className="grid md:grid-cols-3 gap-8">
-                                {localCourses.length === 0 ? <div className="col-span-3 text-center py-20 font-black text-slate-300 text-2xl uppercase">אין קורסים זמינים</div> : 
-                                localCourses.map(c => (
-                                    <div key={c.id} className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 hover:-translate-y-2 transition-transform">
+                                {localCourses.map(c => (
+                                    <div key={c.id} className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
                                         <h3 className="font-black text-2xl mb-4">{c.name}</h3>
                                         <p className="text-slate-400 font-bold mb-8 line-clamp-3 text-sm">{c.summary}</p>
                                         <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black">כניסה לשיעור</button>
@@ -198,69 +219,109 @@ export default function App() {
                         )}
                         {activeSection === 'admin' && (
                             <div>
-                                <div className="flex gap-2 mb-10 bg-slate-100 p-2 rounded-2xl w-fit">
-                                    <button onClick={()=>setAdminTab('approvals')} className={`px-6 py-2 rounded-xl font-black text-sm ${adminTab === 'approvals' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>אישורים ({localUsers.filter(u=>u.status==='pending').length})</button>
-                                    <button onClick={()=>setAdminTab('institutions')} className={`px-6 py-2 rounded-xl font-black text-sm ${adminTab === 'institutions' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>מוסדות</button>
-                                    <button onClick={()=>setAdminTab('users')} className={`px-6 py-2 rounded-xl font-black text-sm ${adminTab === 'users' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>משתמשים</button>
-                                    <button onClick={()=>setActiveModal('add_course')} className="px-6 py-2 rounded-xl font-black text-sm bg-purple-600 text-white shadow-lg">+ הוספת קורס</button>
-                                </div>
-                                {adminTab === 'users' && (
-                                    <div className="bg-white p-8 rounded-3xl border shadow-sm flex flex-col items-center">
-                                        <h2 className="text-2xl font-black mb-6">ניהול משתמשים</h2>
-                                        <button onClick={bulkCreateUsers} className="bg-black text-white px-10 py-4 rounded-2xl font-black shadow-xl mb-10">יצירת 100 חשבונות מהירה ⚡</button>
-                                        <div className="w-full overflow-x-auto">
-                                            <table className="w-full text-right"><thead className="border-b text-slate-400 font-black text-xs"><tr><th className="pb-4">שם</th><th className="pb-4">סטטוס</th></tr></thead>
-                                            <tbody>{localUsers.map(u=>(<tr key={u.id} className="border-b last:border-0"><td className="py-4 font-black">{u.firstName} {u.lastName}</td><td className="py-4"><span className="bg-emerald-100 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black">{u.status}</span></td></tr>))}</tbody></table>
-                                        </div>
-                                    </div>
-                                )}
-                                {adminTab === 'institutions' && (
-                                    <div className="bg-white p-8 rounded-3xl border shadow-sm">
-                                        <h2 className="text-2xl font-black mb-6">מוסדות</h2>
-                                        <div className="grid grid-cols-2 gap-4 mb-8">
-                                            <input type="text" placeholder="שם המוסד" className="p-4 bg-slate-50 rounded-xl border" onChange={e=>setInstData({...instData, name:e.target.value})} />
-                                            <input type="text" placeholder="סמל מוסד" className="p-4 bg-slate-50 rounded-xl border" onChange={e=>setInstData({...instData, symbol:e.target.value})} />
-                                        </div>
-                                        <button onClick={async()=>{const id="inst-"+Date.now(); await setDoc(doc(db,'artifacts',appId,'public','data','institutions',id),{...instData, id}); setToastMsg("מוסד נוצר");}} className="bg-purple-600 text-white px-8 py-3 rounded-xl font-black">צור מוסד</button>
-                                    </div>
-                                )}
+                                <button onClick={()=>setActiveModal('add_course')} className="bg-purple-600 text-white px-8 py-4 rounded-2xl font-black shadow-lg shadow-purple-200">+ הוספת קורס חדש</button>
                             </div>
                         )}
                     </main>
                 </div>
             )}
 
+            {/* מודל יצירת קורס */}
             {activeModal === 'add_course' && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-[60]">
                     <div className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[3rem] shadow-2xl relative text-right">
                         <div className="p-8 border-b sticky top-0 bg-white z-10 flex justify-between items-center">
-                            <h2 className="text-2xl font-black">יצירת קורס חדש</h2>
+                            <h2 className="text-2xl font-black text-slate-900">יצירת קורס חדש</h2>
                             <button onClick={()=>setActiveModal(null)} className="text-slate-300 text-2xl font-bold hover:text-slate-600">&times;</button>
                         </div>
+                        
                         <div className="p-10 space-y-8">
                             <div className="grid grid-cols-2 gap-6">
-                                <div className="space-y-2"><label className="text-xs font-black text-slate-500">שם הקורס</label><input type="text" className="w-full p-4 bg-slate-50 rounded-xl border outline-none" onChange={e=>setCourseData({...courseData, name:e.target.value})} /></div>
-                                <div className="space-y-2"><label className="text-xs font-black text-slate-500">תחום נלמד</label><input type="text" className="w-full p-4 bg-slate-50 rounded-xl border outline-none" onChange={e=>setCourseData({...courseData, field:e.target.value})} /></div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-slate-500">שם הקורס</label>
+                                    <input type="text" className="w-full p-4 bg-slate-50 rounded-xl border outline-none" value={courseData.name} onChange={e=>setCourseData({...courseData, name:e.target.value})} />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-slate-500">תחום נלמד</label>
+                                    {!showNewSubject ? (
+                                        <select className="w-full p-4 bg-slate-50 rounded-xl border outline-none font-bold" onChange={e => {
+                                            if(e.target.value === 'ADD_NEW') setShowNewSubject(true);
+                                            else setCourseData({...courseData, field: e.target.value});
+                                        }}>
+                                            {subjects.map(s => <option key={s} value={s}>{s}</option>)}
+                                            <option value="ADD_NEW">+ הוסף תחום חדש...</option>
+                                        </select>
+                                    ) : (
+                                        <div className="flex gap-2">
+                                            <input type="text" className="flex-1 p-4 bg-purple-50 rounded-xl border border-purple-200 outline-none" placeholder="הקלד תחום חדש" onBlur={(e) => {
+                                                if(e.target.value) setSubjects([...subjects, e.target.value]);
+                                                setShowNewSubject(false);
+                                            }} />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
+
                             <div className="grid grid-cols-3 gap-6">
-                                <div className="space-y-2"><label className="text-xs font-black text-slate-500">מכיתה</label><select className="w-full p-4 bg-slate-50 rounded-xl border outline-none font-bold" onChange={e=>setCourseData({...courseData, fromGrade:e.target.value})}><option>א</option><option>ב</option><option>ג</option><option>ד</option><option>ה</option><option>ו</option><option>ז</option><option>ח</option><option>ט</option><option>י</option><option>יא</option><option>יב</option></select></div>
-                                <div className="space-y-2"><label className="text-xs font-black text-slate-500">עד כיתה</label><select className="w-full p-4 bg-slate-50 rounded-xl border outline-none font-bold" onChange={e=>setCourseData({...courseData, toGrade:e.target.value})}><option>יב</option><option>יא</option><option>י</option></select></div>
-                                <div className="space-y-2"><label className="text-xs font-black text-slate-500">ציוד נדרש</label><input type="text" className="w-full p-4 bg-slate-50 rounded-xl border" onChange={e=>setCourseData({...courseData, equipment:e.target.value})} /></div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-slate-500">מכיתה</label>
+                                    <select className="w-full p-4 bg-slate-50 rounded-xl border font-bold" onChange={e=>setCourseData({...courseData, fromGrade: e.target.value})}>
+                                        {['א','ב','ג','ד','ה','ו','ז','ח','ט','י','יא','יב'].map(g => <option key={g}>{g}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-slate-500">עד כיתה</label>
+                                    <select className="w-full p-4 bg-slate-50 rounded-xl border font-bold" value={courseData.toGrade} onChange={e=>setCourseData({...courseData, toGrade: e.target.value})}>
+                                        {['א','ב','ג','ד','ה','ו','ז','ח','ט','י','יא','יב'].map(g => <option key={g}>{g}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-slate-500">ציוד נדרש</label>
+                                    {!showNewEquip ? (
+                                        <select className="w-full p-4 bg-slate-50 rounded-xl border outline-none font-bold" onChange={e => {
+                                            if(e.target.value === 'ADD_NEW') setShowNewEquip(true);
+                                            else setCourseData({...courseData, equipment: e.target.value});
+                                        }}>
+                                            {equipments.map(eq => <option key={eq} value={eq}>{eq}</option>)}
+                                            <option value="ADD_NEW">+ הוסף ציוד חדש...</option>
+                                        </select>
+                                    ) : (
+                                        <input type="text" className="w-full p-4 bg-purple-50 rounded-xl border border-purple-200 outline-none" placeholder="הקלד ציוד חדש" onBlur={(e) => {
+                                            if(e.target.value) setEquipments([...equipments, e.target.value]);
+                                            setShowNewEquip(false);
+                                        }} />
+                                    )}
+                                </div>
                             </div>
+
                             <div className="space-y-2">
                                 <label className="text-xs font-black text-slate-500">סוג הקורס (מחוון)</label>
                                 <div className="flex bg-slate-100 p-1 rounded-xl">
-                                    {['מיומנויות', 'חקר', 'פרויקטים'].map(t=>(<button key={t} onClick={()=>setCourseData({...courseData, type:t})} className={`flex-1 py-3 rounded-lg font-black text-xs transition-all ${courseData.type === t ? 'bg-white shadow-sm text-purple-600' : 'text-slate-400'}`}>1. {t}</button>))}
+                                    {['מיומנויות', 'חקר', 'פרויקטים'].map(t=>(
+                                        <button key={t} onClick={()=>setCourseData({...courseData, type:t})} className={`flex-1 py-3 rounded-lg font-black text-xs transition-all ${courseData.type === t ? 'bg-white shadow-sm text-purple-600' : 'text-slate-400'}`}>{t}</button>
+                                    ))}
                                 </div>
                             </div>
-                            {[{id:'summary', l:'תמצית הקורס'}, {id:'goals', l:'מטרות הקורס'}, {id:'successGoals', l:'יעדי הצלחה מדידים'}, {id:'skills', l:'מיומנויות נרכשות'}, {id:'activeLearning', l:'התבלין המיוחד: למידה אקטיבית'}].map(f=>(
+
+                            {[
+                                {id: 'summary', l: 'תמצית הקורס'},
+                                {id: 'goals', l: 'מטרות הקורס'},
+                                {id: 'successGoals', l: 'יעדי הצלחה מדידים'},
+                                {id: 'skills', l: 'מיומנויות נרכשות'},
+                                {id: 'activeLearning', l: 'התבלין המיוחד: למידה אקטיבית'}
+                            ].map(f=>(
                                 <div key={f.id} className="space-y-2">
-                                    <div className="flex justify-between items-center"><label className="text-xs font-black text-slate-900">{f.l}</label>
-                                    <button onClick={()=>handleAIGen(f.id, f.l)} className="bg-purple-600 text-white text-[10px] font-black px-3 py-1 rounded-full animate-pulse">ייצר עם AI ✨</button></div>
-                                    <textarea className="w-full p-4 bg-slate-50 rounded-xl border h-32 outline-none focus:border-purple-500" value={courseData[f.id]} onChange={e=>setCourseData({...courseData, [f.id]:e.target.value})} />
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-xs font-black text-slate-900">{f.l}</label>
+                                        <button onClick={()=>handleAIGen(f.id, f.l)} className="bg-purple-600 text-white text-[10px] font-black px-3 py-1 rounded-full animate-pulse shadow-md">
+                                            {aiLoading === f.id ? 'מייצר...' : 'ייצר עם AI ✨'}
+                                        </button>
+                                    </div>
+                                    <textarea className="w-full p-4 bg-slate-50 rounded-xl border h-32 outline-none focus:border-purple-500 transition-all" value={courseData[f.id]} onChange={e=>setCourseData({...courseData, [f.id]:e.target.value})} />
                                 </div>
                             ))}
-                            <button onClick={async()=>{const id="c-"+Date.now(); await setDoc(doc(db,'artifacts',appId,'public','data','courses',id), {...courseData, id}); setActiveModal(null); setToastMsg("נשמר!");}} className="w-full bg-purple-600 text-white py-6 rounded-3xl font-black text-xl shadow-xl hover:bg-purple-700 transition-all">אשר ושמור קורס</button>
+
+                            <button onClick={saveCourse} className="w-full bg-purple-600 text-white py-6 rounded-3xl font-black text-xl shadow-xl hover:bg-purple-700 transition-all active:scale-95">אשר ושמור קורס</button>
                         </div>
                     </div>
                 </div>
