@@ -9,6 +9,7 @@ const firebaseConfig = firebaseConfigStr ? JSON.parse(firebaseConfigStr) : {};
 const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
 const appId = 'edu-nextjs-v1';
 const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
+const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc";
 
 let app, db, auth;
 if (firebaseConfig.apiKey) {
@@ -17,42 +18,10 @@ if (firebaseConfig.apiKey) {
     auth = getAuth(app);
 }
 
-// --- מילון שפות ---
+// --- מילון שפות (עדכנתי כמה טקסטים) ---
 const i18n = {
-    he: { 
-        login_title: "כניסה למערכת", 
-        login_subtitle: "למידה אקטיבית משנה חיים", 
-        btn_login_secure: "התחברות מאובטחת", 
-        btn_register_new: "יצירת חשבון חדש", 
-        btn_submit_request: "שלח בקשת הצטרפות", 
-        btn_back_login: "חזרה לכניסה", 
-        nav_my_courses: "הקורסים שלי", 
-        nav_admin: "ניהול", 
-        welcome_prefix: "שלום, ", 
-        msg_pending_approval: "חשבונך ממתין לאישור אבטחה.", 
-        admin_title_full: "מרכז ניהול ואבטחה", 
-        admin_approvals: "אישורי כניסה", 
-        admin_add_course: "הוספת קורס +", 
-        msg_only_english: "רק אותיות באנגלית",
-        no_courses: "אין קורסים זמינים כרגע"
-    },
-    en: { 
-        login_title: "Secure Login", 
-        login_subtitle: "Active Learning Changes Lives", 
-        btn_login_secure: "Secure Login", 
-        btn_register_new: "Create New Account", 
-        btn_submit_request: "Submit Request", 
-        btn_back_login: "Back to Login", 
-        nav_my_courses: "My Courses", 
-        nav_admin: "Admin Panel", 
-        welcome_prefix: "Hello, ", 
-        msg_pending_approval: "Awaiting security approval.", 
-        admin_title_full: "Security & Management", 
-        admin_approvals: "Approvals", 
-        admin_add_course: "Add New Course +", 
-        msg_only_english: "Only English letters",
-        no_courses: "No courses available yet"
-    }
+    he: { login_title: "כניסה למערכת", login_subtitle: "למידה אקטיבית משנה חיים", btn_login_secure: "התחברות מאובטחת", btn_register_new: "יצירת חשבון חדש", btn_submit_request: "שלח בקשת הצטרפות", btn_back_login: "חזרה לכניסה", nav_my_courses: "הקורסים שלי", nav_admin: "ניהול", welcome_prefix: "שלום, ", msg_pending_approval: "חשבונך ממתין לאישור אבטחה.", admin_title_full: "מרכז ניהול ואבטחה", admin_approvals: "אישורי כניסה", admin_add_course: "הוספת קורס +", msg_only_english: "רק אותיות באנגלית", no_courses: "אין קורסים זמינים כרגע" },
+    en: { login_title: "Secure Login", login_subtitle: "Active Learning Changes Lives", btn_login_secure: "Secure Login", btn_register_new: "Create New Account", btn_submit_request: "Submit Request", btn_back_login: "Back to Login", nav_my_courses: "My Courses", nav_admin: "Admin Panel", welcome_prefix: "Hello, ", msg_pending_approval: "Awaiting security approval.", admin_title_full: "Security & Management", admin_approvals: "Approvals", admin_add_course: "Add New Course +", msg_only_english: "Only English letters", no_courses: "No courses available yet" }
 };
 
 export default function App() {
@@ -148,43 +117,74 @@ export default function App() {
         setCourseData({ name: '', field: 'מתמטיקה', summary: '', goals: '', activeLearning: '' });
     };
 
+    // --- קומפוננטת סרטון רקע ---
+    const BackgroundVideo = () => (
+        <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none">
+            <iframe
+                className="absolute w-[180%] h-[180%] top-[-40%] left-[-40%] opacity-70"
+                src={`https://www.youtube.com/embed/${BACKGROUND_VIDEO_ID}?autoplay=1&mute=1&loop=1&playlist=${BACKGROUND_VIDEO_ID}&controls=0&showinfo=0&rel=0&iv_load_policy=3&cc_load_policy=0&start=30`}
+                title="Background Video"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+            />
+            {/* שכבת אפור שקוף על הסרטון כדי שטופס הכניסה הלבן יהיה קריא וברור */}
+            <div className="absolute inset-0 bg-black/40"></div>
+        </div>
+    );
+
+    // --- כפתורי שפות (עב, AR, EN, RU) ---
+    const LanguageButtons = () => (
+        <div className="flex justify-between items-center mb-6 px-4">
+            <div className="flex gap-1.5">
+                <button onClick={() => setLang('he')} className={`text-xs font-black ${lang === 'he' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-800'} px-3.5 py-1 rounded-full border`}>עב</button>
+                <button className="text-xs font-black bg-slate-100 text-slate-800 px-3.5 py-1 rounded-full border">AR</button>
+            </div>
+            <div className="flex gap-1.5">
+                <button onClick={() => setLang('en')} className={`text-xs font-black ${lang === 'en' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-800'} px-3.5 py-1 rounded-full border`}>EN</button>
+                <button className="text-xs font-black bg-slate-100 text-slate-800 px-3.5 py-1 rounded-full border">RU</button>
+            </div>
+        </div>
+    );
+
     if (!authReady) return <div className="flex items-center justify-center min-h-screen bg-slate-900 text-white">טוען מערכת...</div>;
 
     return (
         <div dir={lang === 'he' ? 'rtl' : 'ltr'} className="min-h-screen bg-slate-50 font-sans text-slate-800">
             
-            {/* מסך התחברות */}
+            {/* מסך התחברות עם סרטון רקע */}
             {!currentUser && (
-                <div className="flex flex-col min-h-screen bg-slate-900">
-                    <div className="p-6 flex justify-between items-center w-full max-w-6xl mx-auto">
-                        <img src={LOGO_URL} alt="Logo" className="h-16 w-auto" />
-                        <button onClick={() => setLang(lang === 'he' ? 'en' : 'he')} className="bg-white/10 text-white px-4 py-2 rounded-xl font-bold border border-white/10">
-                            {lang === 'he' ? 'English' : 'עברית'}
-                        </button>
-                    </div>
+                <div className="relative min-h-screen flex flex-col">
+                    
+                    <BackgroundVideo />
 
                     <div className="flex-grow flex items-center justify-center p-4">
-                        <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md">
-                            <h1 className="text-3xl font-black text-center mb-2">{isRegistering ? t('btn_register_new') : t('login_title')}</h1>
-                            <p className="text-slate-500 text-center mb-8">{t('login_subtitle')}</p>
+                        <div className="bg-white/95 p-10 rounded-[3rem] shadow-2xl w-full max-w-xl border border-slate-100 backdrop-blur-sm relative transition-opacity duration-1000">
+                            
+                            <LanguageButtons />
+
+                            <img src={LOGO_URL} alt="Logo" className="h-28 mx-auto mb-4 w-auto" />
+                            
+                            <h1 className="text-4xl font-black text-center mb-1 text-slate-900 tracking-tight">{t('login_title')}</h1>
+                            <p className="text-slate-500 text-center mb-10 font-medium">{t('login_subtitle')}</p>
                             
                             {!isRegistering ? (
                                 <form onSubmit={handleLogin} className="space-y-4">
                                     <input type="text" placeholder="שם משתמש" className="w-full p-4 bg-slate-50 rounded-2xl border outline-none focus:border-blue-500" onChange={e=>setLoginUser(e.target.value)} />
-                                    <input type="password" placeholder="סיסמה" className="w-full p-4 bg-slate-50 rounded-2xl border outline-none focus:border-blue-500" onChange={e=>setLoginPass(e.target.value)} />
-                                    <button className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg mt-2">{t('btn_login_secure')}</button>
-                                    <button type="button" onClick={()=>setIsRegistering(true)} className="w-full text-blue-600 text-sm mt-4 font-bold">{t('btn_register_new')}</button>
+                                    <input type="password" placeholder="סיסמה (ריק לאדמין)" className="w-full p-4 bg-slate-50 rounded-2xl border outline-none focus:border-blue-500" onChange={e=>setLoginPass(e.target.value)} />
+                                    <button className="w-full bg-slate-900 hover:bg-black text-white font-black py-4 rounded-2xl shadow-xl shadow-blue-100 mt-2"> התחברות מאובטחת</button>
+                                    <button type="button" onClick={()=>setIsRegistering(true)} className="w-full text-blue-600 text-sm mt-4 font-bold hover:underline">{t('btn_register_new')}</button>
                                 </form>
                             ) : (
                                 <form onSubmit={handleRegister} className="space-y-4">
                                     <div className="grid grid-cols-2 gap-2">
-                                        <input type="text" placeholder="פרטי" className="p-4 bg-slate-50 rounded-2xl border" onChange={e=>setRegData({...regData, fname: e.target.value})} />
+                                        <input type="text" placeholder="שם פרטי" className="p-4 bg-slate-50 rounded-2xl border" onChange={e=>setRegData({...regData, fname: e.target.value})} />
                                         <input type="text" placeholder="משפחה" className="p-4 bg-slate-50 rounded-2xl border" onChange={e=>setRegData({...regData, lname: e.target.value})} />
                                     </div>
-                                    <input type="text" placeholder="שם משתמש (אנגלית)" className="w-full p-4 bg-slate-50 rounded-2xl border" onChange={e=>setRegData({...regData, user: e.target.value})} />
+                                    <input type="text" placeholder="שם משתמש באנגלית" className="w-full p-4 bg-slate-50 rounded-2xl border" onChange={e=>setRegData({...regData, user: e.target.value})} />
                                     <input type="password" placeholder="סיסמה" className="w-full p-4 bg-slate-50 rounded-2xl border" onChange={e=>setRegData({...regData, pass1: e.target.value})} />
-                                    <button className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-lg mt-2">{t('btn_submit_request')}</button>
-                                    <button type="button" onClick={()=>setIsRegistering(false)} className="w-full text-slate-400 text-sm mt-2">{t('btn_back_login')}</button>
+                                    <button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-xl mt-2">{t('btn_submit_request')}</button>
+                                    <button type="button" onClick={()=>setIsRegistering(false)} className="w-full text-slate-400 text-sm mt-2 font-bold hover:text-slate-600">{t('btn_back_login')}</button>
                                 </form>
                             )}
                         </div>
@@ -192,18 +192,18 @@ export default function App() {
                 </div>
             )}
 
-            {/* לוח בקרה (Dashboard) */}
+            {/* לוח בקרה (Dashboard) - רקע לבן רגיל */}
             {currentUser && (
                 <div className="flex flex-col min-h-screen">
                     <nav className="bg-white border-b px-6 py-4 flex justify-between items-center sticky top-0 z-40">
                         <div className="flex items-center gap-3">
                             <img src={LOGO_URL} alt="Logo" className="h-10 w-auto" />
-                            <div className="text-xl font-black text-blue-600 hidden md:block text-slate-900">LMS<span className="text-blue-500">Pro</span></div>
+                            <div className="text-xl font-black hidden md:block text-slate-900">LMS<span className="text-blue-500">Pro</span></div>
                         </div>
                         <div className="flex gap-4 items-center">
                             <button onClick={()=>setActiveSection('courses')} className={`font-bold ${activeSection === 'courses' ? 'text-blue-600' : ''}`}>{t('nav_my_courses')}</button>
                             {currentUser.role === 'admin' && <button onClick={()=>setActiveSection('admin')} className={`font-bold ${activeSection === 'admin' ? 'text-purple-600' : ''}`}>{t('nav_admin')}</button>}
-                            <button onClick={() => setLang(lang === 'he' ? 'en' : 'he')} className="text-xs bg-slate-100 px-2 py-1 rounded">HE/EN</button>
+                            <button onClick={() => setLang(lang === 'he' ? 'en' : 'he')} className="text-xs bg-slate-100 px-2.5 py-1 rounded font-black tracking-tight">{lang === 'he' ? 'HE/EN' : 'EN/HE'}</button>
                             <button onClick={()=>setCurrentUser(null)} className="text-red-500 text-sm font-bold">יציאה</button>
                         </div>
                     </nav>
@@ -217,10 +217,10 @@ export default function App() {
                                 ) : (
                                     <div className="grid md:grid-cols-3 gap-6">
                                         {localCourses.map(c => (
-                                            <div key={c.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                                            <div key={c.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow duration-300">
                                                 <h3 className="font-bold text-xl mb-2">{c.name}</h3>
                                                 <p className="text-slate-500 text-sm mb-4 line-clamp-3">{c.summary}</p>
-                                                <button className="w-full bg-slate-900 text-white py-2 rounded-lg font-bold">כניסה לשיעור</button>
+                                                <button className="w-full bg-slate-900 hover:bg-black text-white py-2 rounded-lg font-bold transition-all">כניסה לשיעור</button>
                                             </div>
                                         ))}
                                     </div>
@@ -232,7 +232,7 @@ export default function App() {
                             <div>
                                 <div className="flex justify-between items-center mb-8">
                                     <h2 className="text-3xl font-black">{t('admin_title_full')}</h2>
-                                    <button onClick={()=>setActiveModal('add_course')} className="bg-purple-600 text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-purple-200">{t('admin_add_course')}</button>
+                                    <button onClick={()=>setActiveModal('add_course')} className="bg-purple-600 text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-purple-200 transition-all hover:bg-purple-700">{t('admin_add_course')}</button>
                                 </div>
                                 
                                 <div className="bg-white rounded-2xl shadow-sm border p-6 mb-6">
@@ -241,7 +241,7 @@ export default function App() {
                                     {localUsers.filter(u=>u.status==='pending').map(u=>(
                                         <div key={u.id} className="flex justify-between items-center border-b py-4 last:border-0">
                                             <span className="font-bold">{u.firstName} {u.lastName}</span>
-                                            <button onClick={()=>updateDoc(doc(db,'artifacts',appId,'public','data','users',u.id),{status:'approved'})} className="bg-emerald-50 text-emerald-600 px-4 py-1 rounded-full font-bold text-sm">אשר כניסה</button>
+                                            <button onClick={()=>updateDoc(doc(db,'artifacts', appId, 'public', 'data', 'users', u.id),{status:'approved'})} className="bg-emerald-50 text-emerald-600 px-4 py-1 rounded-full font-bold text-sm transition-all hover:bg-emerald-100">אשר כניסה</button>
                                         </div>
                                     ))}
                                 </div>
@@ -254,32 +254,32 @@ export default function App() {
             {/* מודל הוספת קורס */}
             {activeModal === 'add_course' && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="bg-white p-8 rounded-[2rem] w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+                    <div className="bg-white/95 p-8 rounded-[2rem] w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl backdrop-blur-sm border border-slate-100 transition-opacity duration-300">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-2xl font-black">יצירת קורס חדש</h2>
-                            <button onClick={()=>setActiveModal(null)} className="text-slate-400 text-2xl">&times;</button>
+                            <button onClick={()=>setActiveModal(null)} className="text-slate-400 text-2xl font-medium hover:text-slate-600">&times;</button>
                         </div>
                         <form onSubmit={saveCourse} className="space-y-5">
                             <div>
-                                <label className="text-sm font-bold block mb-1 text-slate-500">שם הקורס</label>
-                                <input type="text" className="w-full p-4 bg-slate-50 rounded-xl border outline-none" onChange={e=>setCourseData({...courseData, name:e.target.value})} required />
+                                <label className="text-sm font-bold block mb-1 text-slate-500 uppercase tracking-wide">שם הקורס</label>
+                                <input type="text" className="w-full p-4 bg-slate-50 rounded-xl border outline-none transition-all focus:border-blue-500 focus:ring-1 focus:ring-blue-100" onChange={e=>setCourseData({...courseData, name:e.target.value})} required />
                             </div>
                             
                             {['summary', 'goals', 'activeLearning'].map(f => (
                                 <div key={f}>
                                     <div className="flex justify-between mb-1">
-                                        <label className="text-sm font-bold text-slate-500 uppercase">{f}</label>
-                                        <button type="button" onClick={()=>handleAIGen(f)} className="text-xs text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-lg">
+                                        <label className="text-sm font-bold text-slate-500 uppercase tracking-wide">{f}</label>
+                                        <button type="button" onClick={()=>handleAIGen(f)} className="text-xs text-blue-600 font-bold bg-blue-50 px-2.5 py-1 rounded-full transition-all hover:bg-blue-100 transform active:scale-95">
                                             {aiLoading === f ? 'מייצר...' : 'ייצר ב-AI ✨'}
                                         </button>
                                     </div>
-                                    <textarea className="w-full p-4 bg-slate-50 rounded-xl border h-28 outline-none" value={courseData[f]} onChange={e=>setCourseData({...courseData, [f]:e.target.value})} />
+                                    <textarea className="w-full p-4 bg-slate-50 rounded-xl border h-28 outline-none transition-all focus:border-blue-500 focus:ring-1 focus:ring-blue-100" value={courseData[f]} onChange={e=>setCourseData({...courseData, [f]:e.target.value})} />
                                 </div>
                             ))}
                             
                             <div className="flex gap-3 pt-4">
-                                <button type="submit" className="flex-1 bg-blue-600 text-white font-bold py-4 rounded-xl shadow-xl shadow-blue-100">שמור קורס</button>
-                                <button type="button" onClick={()=>setActiveModal(null)} className="flex-1 bg-slate-100 text-slate-500 font-bold py-4 rounded-xl">ביטול</button>
+                                <button type="submit" className="flex-1 bg-blue-600 text-white font-black py-4 rounded-xl shadow-xl shadow-blue-100 transition-all hover:bg-blue-700 active:scale-95">שמור קורס</button>
+                                <button type="button" onClick={()=>setActiveModal(null)} className="flex-1 bg-slate-100 text-slate-500 font-bold py-4 rounded-xl transition-all hover:bg-slate-200">ביטול</button>
                             </div>
                         </form>
                     </div>
@@ -287,7 +287,7 @@ export default function App() {
             )}
 
             {/* התראות Toast */}
-            {toastMsg && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-3 rounded-full z-[100] shadow-2xl font-bold animate-bounce">{toastMsg}</div>}
+            {toastMsg && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-3 rounded-full z-[100] shadow-2xl font-bold animate-bounce text-sm">{toastMsg}</div>}
         </div>
     );
 }
