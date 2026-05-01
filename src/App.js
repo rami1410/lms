@@ -4,7 +4,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, writeBatch } from 'firebase/firestore';
 
 // --- הגדרות מערכת ---
-const APP_VERSION = "1.26";
+const APP_VERSION = "1.27";
 const firebaseConfigStr = process.env.NEXT_PUBLIC_FIREBASE_CONFIG;
 const firebaseConfig = firebaseConfigStr ? JSON.parse(firebaseConfigStr) : {};
 const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
@@ -22,21 +22,15 @@ if (firebaseConfig.apiKey) {
 
 const heToEnMap = { '/': 'q', '\'': 'w', 'ק': 'e', 'ר': 'r', 'א': 't', 'ט': 'y', 'ו': 'u', 'ן': 'i', 'ם': 'o', 'פ': 'p', 'ש': 'a', 'ד': 's', 'ג': 'd', 'כ': 'f', 'ע': 'g', 'י': 'h', 'ח': 'j', 'ל': 'k', 'ך': 'l', 'ז': 'z', 'ס': 'x', 'ב': 'c', 'ה': 'v', 'נ': 'b', 'מ': 'n', 'צ': 'm' };
 
-const i18n = {
-    he: { login_title: "כניסה למערכת", login_subtitle: "למידה אקטיבית משנה חיים", btn_login: "התחברות מאובטחת", btn_reg: "יצירת חשבון חדש", nav_courses: "הקורסים שלי", nav_admin: "ניהול", welcome: "שלום, ", no_courses: "אין קורסים זמינים כרגע" },
-    en: { login_title: "Secure Login", login_subtitle: "Active Learning Changes Lives", btn_login: "Secure Login", btn_reg: "Create Account", nav_courses: "My Courses", nav_admin: "Admin Panel", welcome: "Hello, ", no_courses: "No courses yet" },
-    ar: { login_title: "تسجيل الدخول", login_subtitle: "التعلم النشط يغير الحياة", btn_login: "دخول آمن", btn_reg: "إنشاء حساب", nav_courses: "دوراتي", nav_admin: "إدارة", welcome: "مرحباً, ", no_courses: "لا توجد دورات" },
-    ru: { login_title: "Вход ב систему", login_subtitle: "Активное обучение меняет жизнь", btn_login: "Войти", btn_reg: "Регистрация", nav_courses: "Мои курсы", nav_admin: "Админ", welcome: "Привет, ", no_courses: "Курсов нет" }
-};
-
 export default function App() {
     const [authReady, setAuthReady] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
     const [localUsers, setLocalUsers] = useState([]);
     const [localCourses, setLocalCourses] = useState([]);
+    const [localInstitutions, setLocalInstitutions] = useState([]);
     const [lang, setLang] = useState('he');
     const [activeSection, setActiveSection] = useState('courses');
-    const [adminTab, setAdminTab] = useState('approvals');
+    const [isRegistering, setIsRegistering] = useState(false);
     const [activeModal, setActiveModal] = useState(null);
     const [toastMsg, setToastMsg] = useState('');
     const [shakeInput, setShakeInput] = useState(false);
@@ -44,19 +38,8 @@ export default function App() {
 
     const [loginUser, setLoginUser] = useState('');
     const [loginPass, setLoginPass] = useState('');
-    
-    // רשימות דינמיות
-    const [subjects, setSubjects] = useState(['בינה מלאכותית', 'תכנות', 'מדעים', 'מתמטיקה', 'אנגלית']);
-    const [equipments, setEquipments] = useState(['מחשב', 'טאבלט', 'מעבדה', 'ערכת רובוטיקה']);
-    const [showNewSubject, setShowNewSubject] = useState(false);
-    const [showNewEquip, setShowNewEquip] = useState(false);
+    const [regData, setRegData] = useState({ fname: '', lname: '', user: '', institution: '', grade: 'א', pass1: '', pass2: '' });
 
-    const [courseData, setCourseData] = useState({
-        name: '', field: 'בינה מלאכותית', fromGrade: 'א', toGrade: 'יב', equipment: 'מחשב', type: 'מיומנויות',
-        summary: '', goals: '', successGoals: '', skills: '', activeLearning: '', prerequisites: ''
-    });
-
-    const [aiLoading, setAiLoading] = useState(null);
     const audioRef = useRef(null);
 
     useEffect(() => {
@@ -70,6 +53,7 @@ export default function App() {
         if (!authReady || !db) return;
         onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), s => setLocalUsers(s.docs.map(d => ({...d.data(), id: d.id}))));
         onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'courses'), s => setLocalCourses(s.docs.map(d => ({...d.data(), id: d.id}))));
+        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'institutions'), s => setLocalInstitutions(s.docs.map(d => ({...d.data(), id: d.id}))));
     }, [authReady]);
 
     const playBoom = () => {
@@ -100,95 +84,121 @@ export default function App() {
         }
     };
 
-    const handleAIGen = async (field, label) => {
-        if (!geminiApiKey || !courseData.name) {
-            setToastMsg("יש להזין שם קורס קודם");
-            setTimeout(()=>setToastMsg(''), 2000);
-            return;
+    const handleRegister = async (e) => {
+        e.preventDefault();
+        if (regData.pass1 !== regData.pass2) {
+            playBoom(); setToastMsg("הסיסמאות לא תואמות"); return;
         }
-        setAiLoading(field);
+        if (!regData.user || !regData.pass1) {
+            playBoom(); setToastMsg("נא למלא את כל השדות"); return;
+        }
         try {
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: `כתוב ${label} מקצועי ומפורט בעברית עבור קורס בשם "${courseData.name}" המיועד לכיתות ${courseData.fromGrade}-${courseData.toGrade}.` }] }] })
+            const uId = `user-${Date.now()}`;
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', uId), {
+                ...regData, id: uId, role: 'student', status: 'pending', username: regData.user, password: regData.pass1
             });
-            const data = await res.json();
-            const resultText = data.candidates[0].content.parts[0].text;
-            setCourseData(prev => ({...prev, [field]: resultText.trim()}));
+            setToastMsg("נרשמת בהצלחה! המתן לאישור אדמין.");
+            setIsRegistering(false);
         } catch (e) {
-            setToastMsg("שגיאה בייצור תוכן");
-            setTimeout(()=>setToastMsg(''), 2000);
+            setToastMsg("שגיאה ברישום");
         }
-        setAiLoading(null);
     };
-
-    const saveCourse = async () => {
-        if (!courseData.name) {
-            setToastMsg("חובה להזין שם קורס");
-            setTimeout(()=>setToastMsg(''), 2000);
-            return;
-        }
-        try {
-            const id = "c-" + Date.now();
-            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', id), { ...courseData, id });
-            setToastMsg("הקורס נשמר בהצלחה!");
-            setActiveModal(null);
-            setCourseData({ name: '', field: 'בינה מלאכותית', fromGrade: 'א', toGrade: 'יב', equipment: 'מחשב', type: 'מיומנויות', summary: '', goals: '', successGoals: '', skills: '', activeLearning: '', prerequisites: '' });
-        } catch (e) {
-            setToastMsg("שגיאה בשמירה למסד הנתונים");
-        }
-        setTimeout(()=>setToastMsg(''), 3000);
-    };
-
-    const t = (key) => i18n[lang][key] || key;
 
     return (
-        <div dir={(lang === 'he' || lang === 'ar') ? 'rtl' : 'ltr'} className={`min-h-screen font-sans transition-all duration-700 ${currentUser ? 'bg-white text-slate-900' : 'bg-slate-950 text-white'}`}>
+        <div dir="rtl" className={`min-h-screen font-sans transition-colors duration-700 ${currentUser ? 'bg-white' : 'bg-slate-950'}`}>
             <style>{`
                 @keyframes shake { 0%, 100% {transform: translateX(0);} 25% {transform: translateX(-10px);} 75% {transform: translateX(10px);} }
                 .shake-anim { animation: shake 0.15s ease-in-out 0s 2; border: 2px solid red !important; }
-                .glass { background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.2); }
-                .version-label { position: fixed; bottom: 15px; left: 15px; font-size: 10px; font-weight: 900; color: white; z-index: 100; letter-spacing: 1px; }
+                .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.2); }
             `}</style>
 
-            <div className="version-label">V {APP_VERSION}</div>
+            <div className="fixed bottom-4 left-4 text-[10px] font-black text-white/50 z-50">V {APP_VERSION}</div>
 
             {!currentUser ? (
-                /* מסך כניסה */
-                <div className="relative min-h-screen flex items-center justify-center p-4">
+                /* --- מסכי כניסה ורישום --- */
+                <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-4 overflow-y-auto">
                     {videoPlaying && (
                         <div className="fixed inset-0 z-0 pointer-events-none">
-                            <iframe className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[115vw] h-[115vh] opacity-60 scale-125" src={`https://www.youtube.com/embed/${BACKGROUND_VIDEO_ID}?autoplay=1&mute=1&loop=1&playlist=${BACKGROUND_VIDEO_ID}&controls=0&start=30`} frameBorder="0" />
-                            <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"></div>
+                            <iframe className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[115vw] h-[115vh] opacity-50 scale-125" src={`https://www.youtube.com/embed/${BACKGROUND_VIDEO_ID}?autoplay=1&mute=1&loop=1&playlist=${BACKGROUND_VIDEO_ID}&controls=0&start=30`} frameBorder="0" />
+                            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"></div>
                         </div>
                     )}
-                    <div className={`glass p-12 rounded-[3.5rem] shadow-2xl w-full max-w-xl relative z-10 transition-all ${shakeInput ? 'shake-anim' : ''}`}>
-                        <div className="flex justify-between mb-8">
-                            <div className="flex gap-2">
-                                <button onClick={() => setLang('he')} className={`w-11 h-11 rounded-2xl font-black text-xs border ${lang === 'he' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>עב</button>
-                                <button onClick={() => setLang('ar')} className={`w-11 h-11 rounded-2xl font-black text-xs border ${lang === 'ar' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>AR</button>
+
+                    <div className={`bg-white rounded-[3rem] shadow-2xl w-full max-w-xl relative z-10 transition-all ${shakeInput ? 'shake-anim' : ''} ${isRegistering ? 'my-10' : ''}`}>
+                        
+                        {/* טאבים למעלה (רק ברישום) */}
+                        {isRegistering && (
+                            <div className="flex bg-purple-500 text-white rounded-t-[3rem] overflow-hidden">
+                                <button className="flex-1 py-4 font-black text-sm border-b-4 border-white">רישום תלמיד</button>
+                                <button className="flex-1 py-4 font-black text-sm opacity-60">קורס לפי מוסד</button>
                             </div>
-                            <div className="flex gap-2">
-                                <button onClick={() => setLang('en')} className={`w-11 h-11 rounded-2xl font-black text-xs border ${lang === 'en' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>EN</button>
-                                <button onClick={() => setLang('ru')} className={`w-11 h-11 rounded-2xl font-black text-xs border ${lang === 'ru' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>RU</button>
-                            </div>
+                        )}
+
+                        <div className="p-10">
+                            <img src={LOGO_URL} alt="Logo" className="h-24 mx-auto mb-6 rounded-2xl" />
+                            
+                            {!isRegistering ? (
+                                /* טופס כניסה */
+                                <form onSubmit={handleLogin} className="space-y-6">
+                                    <h1 className="text-3xl font-black text-center text-slate-900">כניסה למערכת</h1>
+                                    <input type="text" placeholder="שם משתמש" className="w-full p-5 bg-slate-50 rounded-2xl border-2 text-center text-xl font-black outline-none focus:border-purple-500" onChange={e=>setLoginUser(cleanInput(e.target.value))} />
+                                    <input type="password" placeholder="סיסמה" className="w-full p-5 bg-slate-50 rounded-2xl border-2 text-center text-xl font-black outline-none focus:border-purple-500" onChange={e=>setLoginPass(cleanInput(e.target.value))} />
+                                    <button className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl text-xl shadow-xl hover:bg-black">התחברות מאובטחת</button>
+                                    <button type="button" onClick={()=>setIsRegistering(true)} className="w-full text-purple-600 font-black text-sm">יצירת חשבון חדש</button>
+                                </form>
+                            ) : (
+                                /* טופס רישום מורחב (לפי התמונה) */
+                                <form onSubmit={handleRegister} className="space-y-5 text-right">
+                                    <div>
+                                        <label className="block text-xs font-black mb-1 mr-2">שם פרטי</label>
+                                        <input type="text" placeholder="שם פרטי" className="w-full p-4 bg-slate-50 rounded-xl border outline-none" onChange={e=>setRegData({...regData, fname: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-black mb-1 mr-2">שם משפחה</label>
+                                        <input type="text" placeholder="שם משפחה" className="w-full p-4 bg-slate-50 rounded-xl border outline-none" onChange={e=>setRegData({...regData, lname: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-black mb-1 mr-2 text-purple-600">שם משתמש (אותיות קטנות באנגלית בלבד)</label>
+                                        <input type="text" placeholder="username" value={regData.user} className="w-full p-4 bg-slate-50 rounded-xl border outline-none text-center font-bold" onChange={e=>setRegData({...regData, user: cleanInput(e.target.value)})} />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-black mb-1 mr-2">מוסד לימוד</label>
+                                            <select className="w-full p-4 bg-slate-50 rounded-xl border outline-none font-bold" onChange={e=>setRegData({...regData, institution: e.target.value})}>
+                                                <option value="">בחר מוסד לימוד</option>
+                                                {localInstitutions.map(inst => <option key={inst.id}>{inst.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-black mb-1 mr-2">כיתה</label>
+                                            <select className="w-full p-4 bg-slate-50 rounded-xl border outline-none font-bold" onChange={e=>setRegData({...regData, grade: e.target.value})}>
+                                                {['א','ב','ג','ד','ה','ו','ז','ח','ט','י','יא','יב'].map(g => <option key={g}>{g}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-black mb-1 mr-2">סיסמה</label>
+                                        <input type="password" placeholder="סיסמה" value={regData.pass1} className="w-full p-4 bg-slate-50 rounded-xl border outline-none text-center" onChange={e=>setRegData({...regData, pass1: cleanInput(e.target.value)})} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-black mb-1 mr-2">אימות סיסמה</label>
+                                        <input type="password" placeholder="אימות סיסמה" value={regData.pass2} className="w-full p-4 bg-slate-50 rounded-xl border outline-none text-center" onChange={e=>setRegData({...regData, pass2: cleanInput(e.target.value)})} />
+                                    </div>
+                                    
+                                    <p className="text-[10px] text-center text-slate-400">בהרשמתך, הינך מסכים עם מדיניות האתר ו- <span className="text-blue-500 underline cursor-pointer">Terms and Conditions</span></p>
+                                    
+                                    <button className="w-full bg-purple-500 text-white font-black py-4 rounded-xl shadow-lg text-lg">הרשמה</button>
+                                    <button type="button" onClick={()=>setIsRegistering(false)} className="w-full text-slate-400 font-bold text-xs mt-2">כבר רשום? חזרה לכניסה</button>
+                                </form>
+                            )}
                         </div>
-                        <img src={LOGO_URL} alt="Logo" className="h-28 mx-auto mb-6 rounded-[2rem] shadow-lg" />
-                        <h1 className="text-4xl font-black text-center text-slate-900 mb-2">{t('login_title')}</h1>
-                        <p className="text-slate-500 text-center font-bold mb-10">{t('login_subtitle')}</p>
-                        <form onSubmit={handleLogin} className="space-y-4">
-                            <input type="text" placeholder="User" value={loginUser} className="w-full p-5 bg-slate-50 rounded-2xl border-2 text-slate-900 outline-none text-center text-xl font-black focus:border-purple-500" onChange={e=>setLoginUser(cleanInput(e.target.value))} />
-                            <input type="password" placeholder="Pass" value={loginPass} className="w-full p-5 bg-slate-50 rounded-2xl border-2 text-slate-900 outline-none text-center text-xl font-black focus:border-purple-500" onChange={e=>setLoginPass(cleanInput(e.target.value))} />
-                            <button className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl text-xl shadow-xl hover:bg-black transition-all">התחברות מאובטחת</button>
-                        </form>
                     </div>
-                    <button onClick={() => setVideoPlaying(!videoPlaying)} className="fixed bottom-6 right-6 bg-white/10 hover:bg-white/30 backdrop-blur-xl text-white px-5 py-2 rounded-2xl font-black border border-white/20 text-[10px] z-50">
+                    <button onClick={() => setVideoPlaying(!videoPlaying)} className="fixed bottom-6 right-6 bg-white/10 text-white px-5 py-2 rounded-2xl font-black border text-[10px] z-50">
                         {videoPlaying ? "עצור וידאו ⏹" : "הפעל וידאו ▶"}
                     </button>
                 </div>
             ) : (
-                /* מערכת LMS (רקע לבן) */
+                /* --- המערכת הלבנה (אחרי התחברות) --- */
                 <div className="flex flex-col min-h-screen">
                     <nav className="bg-white border-b px-8 py-4 flex justify-between items-center sticky top-0 z-40 shadow-sm">
                         <div className="flex items-center gap-4">
@@ -197,17 +207,17 @@ export default function App() {
                             {currentUser.role === 'admin' && <button onClick={()=>setActiveSection('admin')} className={`font-black ${activeSection === 'admin' ? 'text-purple-600' : 'text-slate-400'}`}>ניהול</button>}
                         </div>
                         <div className="flex items-center gap-4">
-                            <div className="text-sm font-black bg-slate-100 px-4 py-2 rounded-full text-slate-900">
-                                {currentUser.username === 'rami' && <span className="ml-1">👑</span>}
+                            <div className="text-sm font-black bg-slate-100 px-4 py-2 rounded-full">
+                                {currentUser.username === 'rami' && <span className="ml-2">👑</span>}
                                 {currentUser.firstName} {currentUser.lastName}
                             </div>
-                            <button onClick={()=>setCurrentUser(null)} className="text-red-500 font-black text-xs uppercase bg-red-50 p-2 rounded-lg">יציאה</button>
+                            <button onClick={()=>setCurrentUser(null)} className="text-red-500 font-black text-xs bg-red-50 p-2 rounded-lg">יציאה</button>
                         </div>
                     </nav>
-
-                    <main className="p-8 max-w-7xl mx-auto w-full">
+                    <main className="p-8 max-w-7xl mx-auto w-full text-center">
+                        <h2 className="text-4xl font-black mb-10 text-slate-900">שלום, {currentUser.firstName}!</h2>
                         {activeSection === 'courses' && (
-                            <div className="grid md:grid-cols-3 gap-8">
+                             <div className="grid md:grid-cols-3 gap-8 text-right">
                                 {localCourses.map(c => (
                                     <div key={c.id} className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
                                         <h3 className="font-black text-2xl mb-4">{c.name}</h3>
@@ -218,112 +228,17 @@ export default function App() {
                             </div>
                         )}
                         {activeSection === 'admin' && (
-                            <div>
-                                <button onClick={()=>setActiveModal('add_course')} className="bg-purple-600 text-white px-8 py-4 rounded-2xl font-black shadow-lg shadow-purple-200">+ הוספת קורס חדש</button>
+                            <div className="bg-slate-100 p-10 rounded-[3rem]">
+                                <h3 className="text-2xl font-black mb-6">מרכז ניהול - ממתינים לאישור</h3>
+                                {localUsers.filter(u=>u.status==='pending').map(u=>(
+                                    <div key={u.id} className="bg-white p-4 rounded-xl mb-4 flex justify-between items-center shadow-sm">
+                                        <span className="font-black">{u.firstName} {u.lastName} ({u.institution}, כיתה {u.grade})</span>
+                                        <button onClick={()=>updateDoc(doc(db,'artifacts',appId,'public','data','users',u.id),{status:'approved'})} className="bg-emerald-500 text-white px-6 py-2 rounded-lg font-black">אשר תלמיד</button>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </main>
-                </div>
-            )}
-
-            {/* מודל יצירת קורס */}
-            {activeModal === 'add_course' && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-[60]">
-                    <div className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[3rem] shadow-2xl relative text-right">
-                        <div className="p-8 border-b sticky top-0 bg-white z-10 flex justify-between items-center">
-                            <h2 className="text-2xl font-black text-slate-900">יצירת קורס חדש</h2>
-                            <button onClick={()=>setActiveModal(null)} className="text-slate-300 text-2xl font-bold hover:text-slate-600">&times;</button>
-                        </div>
-                        
-                        <div className="p-10 space-y-8">
-                            <div className="grid grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-black text-slate-500">שם הקורס</label>
-                                    <input type="text" className="w-full p-4 bg-slate-50 rounded-xl border outline-none" value={courseData.name} onChange={e=>setCourseData({...courseData, name:e.target.value})} />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-black text-slate-500">תחום נלמד</label>
-                                    {!showNewSubject ? (
-                                        <select className="w-full p-4 bg-slate-50 rounded-xl border outline-none font-bold" onChange={e => {
-                                            if(e.target.value === 'ADD_NEW') setShowNewSubject(true);
-                                            else setCourseData({...courseData, field: e.target.value});
-                                        }}>
-                                            {subjects.map(s => <option key={s} value={s}>{s}</option>)}
-                                            <option value="ADD_NEW">+ הוסף תחום חדש...</option>
-                                        </select>
-                                    ) : (
-                                        <div className="flex gap-2">
-                                            <input type="text" className="flex-1 p-4 bg-purple-50 rounded-xl border border-purple-200 outline-none" placeholder="הקלד תחום חדש" onBlur={(e) => {
-                                                if(e.target.value) setSubjects([...subjects, e.target.value]);
-                                                setShowNewSubject(false);
-                                            }} />
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-black text-slate-500">מכיתה</label>
-                                    <select className="w-full p-4 bg-slate-50 rounded-xl border font-bold" onChange={e=>setCourseData({...courseData, fromGrade: e.target.value})}>
-                                        {['א','ב','ג','ד','ה','ו','ז','ח','ט','י','יא','יב'].map(g => <option key={g}>{g}</option>)}
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-black text-slate-500">עד כיתה</label>
-                                    <select className="w-full p-4 bg-slate-50 rounded-xl border font-bold" value={courseData.toGrade} onChange={e=>setCourseData({...courseData, toGrade: e.target.value})}>
-                                        {['א','ב','ג','ד','ה','ו','ז','ח','ט','י','יא','יב'].map(g => <option key={g}>{g}</option>)}
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-black text-slate-500">ציוד נדרש</label>
-                                    {!showNewEquip ? (
-                                        <select className="w-full p-4 bg-slate-50 rounded-xl border outline-none font-bold" onChange={e => {
-                                            if(e.target.value === 'ADD_NEW') setShowNewEquip(true);
-                                            else setCourseData({...courseData, equipment: e.target.value});
-                                        }}>
-                                            {equipments.map(eq => <option key={eq} value={eq}>{eq}</option>)}
-                                            <option value="ADD_NEW">+ הוסף ציוד חדש...</option>
-                                        </select>
-                                    ) : (
-                                        <input type="text" className="w-full p-4 bg-purple-50 rounded-xl border border-purple-200 outline-none" placeholder="הקלד ציוד חדש" onBlur={(e) => {
-                                            if(e.target.value) setEquipments([...equipments, e.target.value]);
-                                            setShowNewEquip(false);
-                                        }} />
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-slate-500">סוג הקורס (מחוון)</label>
-                                <div className="flex bg-slate-100 p-1 rounded-xl">
-                                    {['מיומנויות', 'חקר', 'פרויקטים'].map(t=>(
-                                        <button key={t} onClick={()=>setCourseData({...courseData, type:t})} className={`flex-1 py-3 rounded-lg font-black text-xs transition-all ${courseData.type === t ? 'bg-white shadow-sm text-purple-600' : 'text-slate-400'}`}>{t}</button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {[
-                                {id: 'summary', l: 'תמצית הקורס'},
-                                {id: 'goals', l: 'מטרות הקורס'},
-                                {id: 'successGoals', l: 'יעדי הצלחה מדידים'},
-                                {id: 'skills', l: 'מיומנויות נרכשות'},
-                                {id: 'activeLearning', l: 'התבלין המיוחד: למידה אקטיבית'}
-                            ].map(f=>(
-                                <div key={f.id} className="space-y-2">
-                                    <div className="flex justify-between items-center">
-                                        <label className="text-xs font-black text-slate-900">{f.l}</label>
-                                        <button onClick={()=>handleAIGen(f.id, f.l)} className="bg-purple-600 text-white text-[10px] font-black px-3 py-1 rounded-full animate-pulse shadow-md">
-                                            {aiLoading === f.id ? 'מייצר...' : 'ייצר עם AI ✨'}
-                                        </button>
-                                    </div>
-                                    <textarea className="w-full p-4 bg-slate-50 rounded-xl border h-32 outline-none focus:border-purple-500 transition-all" value={courseData[f.id]} onChange={e=>setCourseData({...courseData, [f.id]:e.target.value})} />
-                                </div>
-                            ))}
-
-                            <button onClick={saveCourse} className="w-full bg-purple-600 text-white py-6 rounded-3xl font-black text-xl shadow-xl hover:bg-purple-700 transition-all active:scale-95">אשר ושמור קורס</button>
-                        </div>
-                    </div>
                 </div>
             )}
             
