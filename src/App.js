@@ -4,6 +4,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc } from 'firebase/firestore';
 
 // --- הגדרות מערכת ---
+const APP_VERSION = "1.21";
 const firebaseConfigStr = process.env.NEXT_PUBLIC_FIREBASE_CONFIG;
 const firebaseConfig = firebaseConfigStr ? JSON.parse(firebaseConfigStr) : {};
 const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
@@ -46,6 +47,7 @@ export default function App() {
     const [activeModal, setActiveModal] = useState(null);
     const [toastMsg, setToastMsg] = useState('');
     const [shakeInput, setShakeInput] = useState(false);
+    const [videoPlaying, setVideoPlaying] = useState(true);
 
     const [loginUser, setLoginUser] = useState('');
     const [loginPass, setLoginPass] = useState('');
@@ -54,9 +56,10 @@ export default function App() {
     const [courseData, setCourseData] = useState({ name: '', field: 'מתמטיקה', summary: '', goals: '', activeLearning: '' });
     const [aiLoading, setAiLoading] = useState(null);
 
-    const audioRef = useRef(new Audio(BOOM_SOUND));
+    const audioRef = useRef(null);
 
     useEffect(() => {
+        audioRef.current = new Audio(BOOM_SOUND);
         if (!auth) { setAuthReady(true); return; }
         signInAnonymously(auth).catch(console.error);
         onAuthStateChanged(auth, (user) => { if (user) setAuthReady(true); });
@@ -69,33 +72,23 @@ export default function App() {
     }, [authReady]);
 
     const playBoom = () => {
-        audioRef.current.currentTime = 0;
-        audioRef.current.play().catch(() => {});
+        if (audioRef.current) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play().catch(() => {});
+        }
         setShakeInput(true);
         setTimeout(() => setShakeInput(false), 500);
     };
 
-    // פונקציית הקסם - ניקוי ותיקון קלט בזמן אמת
     const cleanInput = (val) => {
         let cleaned = "";
         let errorTriggered = false;
-
         for (let char of val) {
             let lowerChar = char.toLowerCase();
-            // אם זו אות בעברית - המר לאנגלית
-            if (heToEnMap[char]) {
-                cleaned += heToEnMap[char];
-            } 
-            // אם זו אות אנגלית קטנה או מספר - הוסף כפי שהיא
-            else if (/[a-z0-9]/.test(lowerChar)) {
-                cleaned += lowerChar;
-            } 
-            // כל דבר אחר (רווחים, סימנים, עברית שלא במפה) - חסום והפעל בום
-            else {
-                errorTriggered = true;
-            }
+            if (heToEnMap[char]) { cleaned += heToEnMap[char]; } 
+            else if (/[a-z0-9]/.test(lowerChar)) { cleaned += lowerChar; } 
+            else { errorTriggered = true; }
         }
-
         if (errorTriggered) playBoom();
         return cleaned;
     };
@@ -140,32 +133,44 @@ export default function App() {
             <style>{`
                 @keyframes shake { 0%, 100% {transform: translateX(0);} 25% {transform: translateX(-10px);} 75% {transform: translateX(10px);} }
                 .shake-anim { animation: shake 0.2s ease-in-out 0s 2; border: 2px solid red !important; }
+                .video-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; overflow: hidden; }
+                .video-bg iframe { position: absolute; top: 50%; left: 50%; width: 100vw; height: 56.25vw; min-height: 100vh; min-width: 177.77vh; transform: translate(-50%, -50%); opacity: 0.7; }
+                .version-tag { position: fixed; bottom: 20px; left: 20px; color: white; font-size: 10px; font-weight: 900; opacity: 0.5; z-index: 100; pointer-events: none; letter-spacing: 1px; }
             `}</style>
 
-            {!currentUser && (
-                <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
-                    {/* רקע וידאו */}
-                    <div className="fixed inset-0 z-[-1]">
-                        <iframe className="absolute w-[300%] h-[300%] top-[-100%] left-[-100%]" src={`https://www.youtube.com/embed/${BACKGROUND_VIDEO_ID}?autoplay=1&mute=1&loop=1&playlist=${BACKGROUND_VIDEO_ID}&controls=0&start=30`} frameBorder="0" allow="autoplay" />
-                        <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"></div>
-                    </div>
+            {/* רקע וידאו */}
+            {!currentUser && videoPlaying && (
+                <div className="video-bg">
+                    <iframe 
+                        src={`https://www.youtube.com/embed/${BACKGROUND_VIDEO_ID}?autoplay=1&mute=1&loop=1&playlist=${BACKGROUND_VIDEO_ID}&controls=0&start=30&rel=0&iv_load_policy=3`} 
+                        frameBorder="0" 
+                        allow="autoplay; encrypted-media" 
+                    />
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"></div>
+                </div>
+            )}
 
+            {/* תצוגת גרסה קבועה */}
+            <div className="version-tag">V {APP_VERSION}</div>
+
+            {!currentUser && (
+                <div className="relative min-h-screen flex flex-col items-center justify-center p-4">
+                    
                     {/* קופסת כניסה */}
                     <div className={`bg-white/95 p-10 rounded-[3rem] shadow-2xl w-full max-w-xl border border-white/20 backdrop-blur-md transition-all ${shakeInput ? 'shake-anim' : ''}`}>
                         
-                        {/* כפתורי שפה בעיצוב המבוקש */}
                         <div className="flex justify-between mb-8">
                             <div className="flex gap-2">
-                                <button onClick={() => setLang('he')} className={`w-10 h-10 rounded-full font-black text-xs border ${lang === 'he' ? 'bg-slate-900 text-white' : 'bg-slate-100'}`}>עב</button>
-                                <button onClick={() => setLang('ar')} className={`w-10 h-10 rounded-full font-black text-xs border ${lang === 'ar' ? 'bg-slate-900 text-white' : 'bg-slate-100'}`}>AR</button>
+                                <button onClick={() => setLang('he')} className={`w-10 h-10 rounded-full font-black text-xs border ${lang === 'he' ? 'bg-slate-900 text-white' : 'bg-white text-slate-800 shadow-sm'}`}>עב</button>
+                                <button onClick={() => setLang('ar')} className={`w-10 h-10 rounded-full font-black text-xs border ${lang === 'ar' ? 'bg-slate-900 text-white' : 'bg-white text-slate-800 shadow-sm'}`}>AR</button>
                             </div>
                             <div className="flex gap-2">
-                                <button onClick={() => setLang('en')} className={`w-10 h-10 rounded-full font-black text-xs border ${lang === 'en' ? 'bg-slate-900 text-white' : 'bg-slate-100'}`}>EN</button>
-                                <button onClick={() => setLang('ru')} className={`w-10 h-10 rounded-full font-black text-xs border ${lang === 'ru' ? 'bg-slate-900 text-white' : 'bg-slate-100'}`}>RU</button>
+                                <button onClick={() => setLang('en')} className={`w-10 h-10 rounded-full font-black text-xs border ${lang === 'en' ? 'bg-slate-900 text-white' : 'bg-white text-slate-800 shadow-sm'}`}>EN</button>
+                                <button onClick={() => setLang('ru')} className={`w-10 h-10 rounded-full font-black text-xs border ${lang === 'ru' ? 'bg-slate-900 text-white' : 'bg-white text-slate-800 shadow-sm'}`}>RU</button>
                             </div>
                         </div>
 
-                        <img src={LOGO_URL} alt="Logo" className="h-24 mx-auto mb-4" />
+                        <img src={LOGO_URL} alt="Logo" className="h-28 mx-auto mb-4" />
                         <h1 className="text-4xl font-black text-center mb-1">{t('login_title')}</h1>
                         <p className="text-slate-500 text-center mb-10">{t('login_subtitle')}</p>
 
@@ -191,6 +196,14 @@ export default function App() {
                             </form>
                         )}
                     </div>
+
+                    {/* כפתור עצירה/הפעלה לוידאו */}
+                    <button 
+                        onClick={() => setVideoPlaying(!videoPlaying)}
+                        className="fixed bottom-6 right-6 bg-white/20 hover:bg-white/40 backdrop-blur-md text-white px-4 py-2 rounded-full font-black border border-white/30 text-xs shadow-lg transition-all z-50 active:scale-90"
+                    >
+                        {videoPlaying ? "⏹ עצר וידאו" : "▶ הפעל וידאו"}
+                    </button>
                 </div>
             )}
 
@@ -226,7 +239,6 @@ export default function App() {
                 </div>
             )}
 
-            {/* מודל הוספת קורס */}
             {activeModal === 'add_course' && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
                     <div className="bg-white p-10 rounded-[3rem] w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -258,7 +270,7 @@ export default function App() {
                 </div>
             )}
             
-            {toastMsg && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-red-600 text-white px-10 py-4 rounded-full z-[100] shadow-2xl font-black animate-bounce">{toastMsg}</div>}
+            {toastMsg && <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-red-600 text-white px-10 py-4 rounded-full z-[100] shadow-2xl font-black animate-bounce">{toastMsg}</div>}
         </div>
     );
 }
