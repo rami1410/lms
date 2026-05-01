@@ -8,7 +8,7 @@ import { onSnapshot, collection, signInAnonymously } from 'firebase/firestore';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc";
-export const APP_VERSION = "1.29";
+export const APP_VERSION = "2.00";
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
