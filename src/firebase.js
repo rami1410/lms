@@ -2,15 +2,14 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// אנחנו בודקים את כל האפשרויות לשמות המשתנה
 const configStr = process.env.REACT_APP_FIREBASE_CONFIG || process.env.NEXT_PUBLIC_FIREBASE_CONFIG;
 let firebaseConfig = null;
 
 if (configStr) {
     try {
-        firebaseConfig = JSON.parse(configStr);
+        firebaseConfig = typeof configStr === 'string' ? JSON.parse(configStr) : configStr;
     } catch (e) {
-        console.error("Firebase Config Parse Error");
+        console.error("Firebase Config JSON Parse Error.");
     }
 }
 
@@ -19,9 +18,10 @@ let app, auth, db;
 if (firebaseConfig && firebaseConfig.apiKey) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    db = getFirestore(app);
+    // הנה תיקון הקסם: אנחנו מפנים אותו לשם המדויק של מסד הנתונים שלך!
+    db = getFirestore(app, "ai-studio-37d2b621-79f2-4136-9bb1-86fa0640d787");
 } else {
-    console.warn("DEBUG: Firebase Config is missing or invalid");
+    console.error("CRITICAL: Firebase Config is missing.");
 }
 
 export { auth, db };
