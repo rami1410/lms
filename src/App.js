@@ -14,7 +14,7 @@ import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.25"; 
+export const APP_VERSION = "2.27"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -91,15 +91,15 @@ export default function App() {
                 <div className="flex items-center gap-3">
                     {currentUser.role === 'admin' && (
                         <div className="flex bg-slate-100 p-1 rounded-xl gap-1 ml-4 border-l pl-4">
-                            <button onClick={() => setViewMode(viewMode === 'student' ? 'admin' : 'student')} className={`px-3 py-1.5 rounded-lg font-bold text-[10px] ${viewMode === 'student' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-500'}`}>👨‍🎓 תלמיד</button>
-                            <button onClick={() => setViewMode(viewMode === 'teacher' ? 'admin' : 'teacher')} className={`px-3 py-1.5 rounded-lg font-bold text-[10px] ${viewMode === 'teacher' ? 'bg-blue-500 text-white shadow-md' : 'text-slate-500'}`}>👨‍🏫 מורה</button>
+                            <button onClick={() => setViewMode(viewMode === 'student' ? 'admin' : 'student')} className={`px-3 py-1.5 rounded-lg font-bold text-[10px] ${viewMode === 'student' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>👨‍🎓 תלמיד</button>
+                            <button onClick={() => setViewMode(viewMode === 'teacher' ? 'admin' : 'teacher')} className={`px-3 py-1.5 rounded-lg font-bold text-[10px] ${viewMode === 'teacher' ? 'bg-blue-500 text-white' : 'text-slate-500'}`}>👨‍🏫 מורה</button>
                         </div>
                     )}
                     {viewMode === 'admin' && (
                         <div className="flex gap-2">
-                            <button onClick={() => setActiveModal({type:'course'})} className="bg-purple-600 text-white px-3 py-2 rounded-xl text-xs font-black shadow-sm">+ קורס</button>
-                            <button onClick={() => setActiveModal({type:'student'})} className="bg-emerald-500 text-white px-3 py-2 rounded-xl text-xs font-black shadow-sm">+ תלמיד</button>
-                            <button onClick={() => setActiveModal({type:'inst'})} className="bg-blue-500 text-white px-3 py-2 rounded-xl text-xs font-black shadow-sm">+ מוסד</button>
+                            <button onClick={() => setActiveModal({type:'course'})} className="bg-purple-600 text-white px-3 py-2 rounded-xl text-xs font-black">+ קורס</button>
+                            <button onClick={() => setActiveModal({type:'student'})} className="bg-emerald-500 text-white px-3 py-2 rounded-xl text-xs font-black">+ תלמיד</button>
+                            <button onClick={() => setActiveModal({type:'inst'})} className="bg-blue-500 text-white px-3 py-2 rounded-xl text-xs font-black">+ מוסד</button>
                         </div>
                     )}
                     <div className="flex items-center gap-3 mr-2">
@@ -111,7 +111,14 @@ export default function App() {
 
             <main className="p-8 max-w-7xl mx-auto">
                 {viewingCourse ? (
-                    <CourseView course={viewingCourse} onBack={() => setViewingCourse(null)} toast={setToast} isAdmin={viewMode === 'admin'} userId={currentUser.id} userProgress={userProgress[viewingCourse.id] || {}} />
+                    <CourseView 
+                        course={viewingCourse} 
+                        onBack={() => setViewingCourse(null)} 
+                        toast={setToast} 
+                        isAdmin={viewMode === 'admin' || viewMode === 'teacher'} 
+                        userId={currentUser.id} 
+                        userProgress={userProgress[viewingCourse.id] || {}} 
+                    />
                 ) : activeSection === 'admin' ? (
                     <AdminPanel 
                         users={viewMode === 'teacher' ? localUsers.filter(u => u.institutionId === currentUser.institutionId) : localUsers} 
@@ -122,20 +129,20 @@ export default function App() {
                         onEditInst={(i) => setActiveModal({type:'inst', data: i})}
                     />
                 ) : (
-                    <div className="grid md:grid-cols-3 gap-8">
+                    <div className="grid md:grid-cols-3 gap-8 text-center">
                         {localCourses.map(c => {
                             const pct = getCourseProgress(c.id, c.lessons?.length);
                             return (
-                                <div key={c.id} className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col items-center group hover:scale-[1.02] transition-all">
-                                    <div className="relative w-24 h-24 mb-4">
+                                <div key={c.id} className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col items-center">
+                                    <div className="relative w-20 h-20 mb-4">
                                         <svg className="w-full h-full -rotate-90">
-                                            <circle cx="48" cy="48" r="40" stroke="#f1f5f9" strokeWidth="8" fill="transparent" />
-                                            <circle cx="48" cy="48" r="40" stroke="#9333ea" strokeWidth="8" fill="transparent" strokeDasharray="251.2" strokeDashoffset={251.2 - (251.2 * pct) / 100} strokeLinecap="round" className="transition-all duration-1000" />
+                                            <circle cx="40" cy="40" r="35" stroke="#f1f5f9" strokeWidth="6" fill="transparent" />
+                                            <circle cx="40" cy="40" r="35" stroke="#9333ea" strokeWidth="6" fill="transparent" strokeDasharray="219.9" strokeDashoffset={219.9 - (219.9 * pct) / 100} strokeLinecap="round" />
                                         </svg>
-                                        <div className="absolute inset-0 flex items-center justify-center font-black text-lg text-purple-600">{pct}%</div>
+                                        <div className="absolute inset-0 flex items-center justify-center font-black text-sm text-purple-600">{pct}%</div>
                                     </div>
-                                    <h3 className="font-black text-xl mb-4 text-slate-800">{c.name}</h3>
-                                    <button onClick={() => setViewingCourse(c)} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black group-hover:bg-purple-600 transition-colors shadow-lg">כניסה</button>
+                                    <h3 className="font-black text-xl mb-4">{c.name}</h3>
+                                    <button onClick={() => setViewingCourse(c)} className="w-full bg-slate-900 text-white py-3 rounded-2xl font-black">כניסה</button>
                                 </div>
                             );
                         })}
@@ -147,7 +154,7 @@ export default function App() {
             {activeModal?.type === 'student' && <StudentModal onClose={() => setActiveModal(null)} toast={setToast} institutions={localInstitutions} allUsers={localUsers} initialData={activeModal.data} />}
             {activeModal?.type === 'inst' && <InstitutionModal onClose={() => setActiveModal(null)} toast={setToast} initialData={activeModal.data} />}
             
-            {toast && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-full font-black z-[300] shadow-2xl animate-bounce">{toast}</div>}
+            {toast && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-full font-black z-[300] shadow-2xl">{toast}</div>}
             <div className="fixed bottom-2 left-2 text-[10px] text-slate-300 font-bold">V {APP_VERSION}</div>
         </div>
     );
