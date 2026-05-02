@@ -14,7 +14,7 @@ import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.21"; 
+export const APP_VERSION = "2.22"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -54,17 +54,22 @@ export default function App() {
         if (u === 'rami' && p === '1234') {
             setCurrentUser({id: 'admin-rami', firstName:'רמי', role:'admin'});
             setViewMode('admin');
-        } else {
-            const found = localUsers.find(x => x.username === u && x.password === p);
-            if (found) {
-                const inst = localInstitutions.find(i => i.id === found.institutionId);
-                if (inst && inst.expiryDate && new Date(inst.expiryDate) < new Date()) {
-                    return setToast(t('expiry_msg'));
-                }
-                setCurrentUser(found);
-                setViewMode(found.role || 'student');
-            } else { setToast('פרטים שגויים'); }
+            return;
         }
+        
+        const found = localUsers.find(x => x.username === u && x.password === p);
+        if (found) {
+            // בדיקת תוקף מוסד - חובה לכל משתמש
+            const inst = localInstitutions.find(i => i.id === found.institutionId);
+            if (!inst) return setToast("שגיאה: משתמש זה אינו משויך למוסד מוכר");
+            
+            if (inst.expiryDate && new Date(inst.expiryDate) < new Date()) {
+                return setToast("תוקף המנוי של המוסד פג. הגישה חסומה.");
+            }
+            
+            setCurrentUser(found);
+            setViewMode(found.role || 'student');
+        } else { setToast('פרטים שגויים'); }
     };
 
     if (!currentUser) return (
@@ -89,14 +94,8 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <select value={lang} onChange={(e) => setLang(e.target.value)} className="bg-slate-100 border-none rounded-xl px-3 py-2 text-xs font-black outline-none cursor-pointer">
-                        {Object.entries(i18n).map(([code, config]) => (
-                            <option key={code} value={code}>{config.label}</option>
-                        ))}
-                    </select>
-
                     {currentUser.role === 'admin' && (
-                        <div className={`flex bg-slate-100 p-1 rounded-xl gap-1 ${direction === 'rtl' ? 'ml-4 border-l pl-4' : 'mr-4 border-r pr-4'}`}>
+                        <div className="flex bg-slate-100 p-1 rounded-xl gap-1 ml-4 border-l pl-4">
                             <button onClick={() => setViewMode(viewMode === 'student' ? 'admin' : 'student')} className={`px-3 py-1.5 rounded-lg font-bold text-[10px] transition-all ${viewMode === 'student' ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:bg-white'}`}>{t('view_student')}</button>
                             <button onClick={() => setViewMode(viewMode === 'teacher' ? 'admin' : 'teacher')} className={`px-3 py-1.5 rounded-lg font-bold text-[10px] transition-all ${viewMode === 'teacher' ? 'bg-blue-500 text-white' : 'text-slate-500 hover:bg-white'}`}>{t('view_teacher')}</button>
                         </div>
@@ -135,14 +134,7 @@ export default function App() {
                 )}
             </main>
 
-            {activeModal === 'add_course' && (
-                <CourseModal 
-                    onClose={() => setActiveModal(null)} 
-                    toast={setToast} 
-                    geminiKey={process.env.REACT_APP_GEMINI_API_KEY} 
-                    existingCourses={localCourses} 
-                />
-            )}
+            {activeModal === 'add_course' && <CourseModal onClose={() => setActiveModal(null)} toast={setToast} geminiKey={process.env.REACT_APP_GEMINI_API_KEY} existingCourses={localCourses} />}
             {activeModal === 'add_student' && <StudentModal onClose={() => setActiveModal(null)} toast={setToast} institutions={localInstitutions} allUsers={localUsers} />}
             {activeModal === 'add_inst' && <InstitutionModal onClose={() => setActiveModal(null)} toast={setToast} />}
             {activeModal === 'add_map' && <MapModal onClose={() => setActiveModal(null)} toast={setToast} />}
