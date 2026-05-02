@@ -1,77 +1,54 @@
-import React, { useState, useRef } from 'react';
-import SafeInput from './SafeInput';
+import React, { useState } from 'react';
 import { db, appId } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { LOGO_URL } from '../App';
 
 export default function Register({ onBack, institutions, users, toast, playBoom }) {
     const [data, setData] = useState({ 
-        fname: '', lname: '', user: '', institution: '', grade: 'א', role: 'student', pass1: '', pass2: '' 
+        firstName: '', lastName: '', username: '', password: '', 
+        institutionId: '', grade: 'א', role: 'student', status: 'pending' 
     });
 
-    const fnameRef = useRef();
-    const userRef = useRef();
+    const fixUsername = (val) => {
+        const hebrewToEnglish = {
+            'ש': 'a', 'נ': 'b', 'ב': 'c', 'ג': 'd', 'ק': 'e', 'כ': 'f', 'ע': 'g', 'י': 'h', 'ן': 'i', 'ח': 'j',
+            'ל': 'k', 'ך': 'l', 'צ': 'm', 'מ': 'n', 'ם': 'o', 'פ': 'p', 'ר': 'r', 'ד': 's', 'א': 't', 'ו': 'u',
+            'ה': 'v', 'ו': 'w', 'ס': 'x', 'ט': 'y', 'ז': 'z', 'ף': 'p', 'ץ': 'm'
+        };
+        let fixed = val.toLowerCase().split('').map(char => hebrewToEnglish[char] || char).join('');
+        return fixed.replace(/[^a-z0-9]/g, '');
+    };
 
     const handleRegister = async (e) => {
         e.preventDefault();
-
-        if (!data.fname.trim()) { 
-            toast("נא להזין שם פרטי"); 
-            fnameRef.current?.focus(); 
-            playBoom(); return; 
+        if (users.find(u => u.username === data.username)) {
+            if(playBoom) playBoom();
+            return toast("שם המשתמש כבר תפוס");
         }
-        
-        const exists = users.find(u => u.username === data.user);
-        if (exists) {
-            toast("שם המשתמש כבר תפוס");
-            playBoom(); return;
-        }
-
-        if (data.pass1 !== data.pass2) {
-            toast("הסיסמאות אינן תואמות");
-            playBoom(); return;
-        }
-        
+        const id = "user-" + Date.now();
         try {
-            const uId = `user-${Date.now()}`;
-            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', uId), {
-                ...data, id: uId, status: 'pending', username: data.user, password: data.pass1
-            });
-            toast("נרשמת! המתן לאישור אדמין.");
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', id), { ...data, id });
+            toast("נרשמת! המתן לאישור מנהל");
             onBack();
-        } catch (e) { toast("שגיאה ברישום"); }
+        } catch (err) { toast("שגיאה ברישום"); }
     };
 
     return (
-        <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-xl p-10 relative z-10 text-right text-slate-900">
-            <img src={LOGO_URL} className="h-20 mx-auto mb-6 rounded-2xl" />
-            <h1 className="text-3xl font-black text-center mb-2">רישום חדש</h1>
-            
-            {/* בחירת תפקיד */}
-            <div className="flex bg-slate-100 p-1 rounded-2xl mb-6 mt-4">
-                <button type="button" onClick={() => setData({...data, role: 'student'})} className={`flex-1 py-3 rounded-xl font-black text-xs transition-all ${data.role === 'student' ? 'bg-purple-600 text-white' : 'text-slate-400'}`}>תלמיד</button>
-                <button type="button" onClick={() => setData({...data, role: 'mentor'})} className={`flex-1 py-3 rounded-xl font-black text-xs transition-all ${data.role === 'mentor' ? 'bg-purple-600 text-white' : 'text-slate-400'}`}>מנחה</button>
-            </div>
-
+        <div className="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md text-right" dir="rtl">
+            <h2 className="text-3xl font-black mb-8 text-slate-800">הרשמה למערכת</h2>
             <form onSubmit={handleRegister} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                    <input ref={fnameRef} placeholder="שם פרטי" className="p-4 bg-slate-50 rounded-xl border outline-none font-bold" onChange={e=>setData({...data, fname: e.target.value})} />
-                    <input placeholder="שם משפחה" className="p-4 bg-slate-50 rounded-xl border outline-none font-bold" onChange={e=>setData({...data, lname: e.target.value})} />
+                    <input placeholder="שם פרטי" className="w-full p-4 bg-slate-50 rounded-2xl border font-bold outline-none" onChange={e => setData({...data, firstName: e.target.value})} required />
+                    <input placeholder="שם משפחה" className="w-full p-4 bg-slate-50 rounded-2xl border font-bold outline-none" onChange={e => setData({...data, lastName: e.target.value})} required />
                 </div>
-                <SafeInput value={data.user} onChange={val=>setData({...data, user: val})} placeholder="שם משתמש (אנגלית)" playBoom={playBoom} className="w-full p-4 bg-slate-50 rounded-xl border text-center font-black outline-none" />
-                <div className="grid grid-cols-2 gap-4">
-                    <select className="p-4 bg-slate-50 rounded-xl border font-bold outline-none" onChange={e=>setData({...data, institution: e.target.value})}>
-                        <option value="">מוסד</option>
-                        {institutions.map(inst => <option key={inst.id}>{inst.name}</option>)}
-                    </select>
-                    <select className="p-4 bg-slate-50 rounded-xl border font-bold outline-none" onChange={e=>setData({...data, grade: e.target.value})}>
-                        {['א','ב','ג','ד','ה','ו','ז','ח','ט','י','יא','יב'].map(g => <option key={g}>{g}</option>)}
-                    </select>
-                </div>
-                <SafeInput type="password" value={data.pass1} onChange={val=>setData({...data, pass1: val})} placeholder="סיסמה" playBoom={playBoom} className="w-full p-4 bg-slate-50 rounded-xl border text-center font-black" />
-                <SafeInput type="password" value={data.pass2} onChange={val=>setData({...data, pass2: val})} placeholder="אימות סיסמה" playBoom={playBoom} className="w-full p-4 bg-slate-50 rounded-xl border text-center font-black" />
-                <button className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-xl shadow-xl mt-4">הרשמה</button>
-                <button type="button" onClick={onBack} className="w-full text-slate-400 font-bold text-xs">חזרה לכניסה</button>
+                <input placeholder="שם משתמש (אנגלית)" dir="ltr" className="w-full p-4 bg-slate-50 rounded-2xl border font-bold text-left outline-none" 
+                    value={data.username} onChange={e => setData({...data, username: fixUsername(e.target.value)})} required />
+                <input placeholder="סיסמה" type="password" className="w-full p-4 bg-slate-50 rounded-2xl border font-bold outline-none" onChange={e => setData({...data, password: e.target.value})} required />
+                <select className="w-full p-4 bg-slate-50 rounded-2xl border font-bold outline-none" onChange={e => setData({...data, institutionId: e.target.value})} required>
+                    <option value="">בחר מוסד לימודים</option>
+                    {institutions.map(ins => <option key={ins.id} value={ins.id}>{ins.name}</option>)}
+                </select>
+                <button type="submit" className="w-full bg-purple-600 text-white py-5 rounded-2xl font-black text-xl shadow-lg hover:bg-purple-700">שלח בקשת הצטרפות</button>
+                <button type="button" onClick={onBack} className="w-full text-slate-400 font-bold py-2 text-sm">חזרה להתחברות</button>
             </form>
         </div>
     );
