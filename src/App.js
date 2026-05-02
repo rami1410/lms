@@ -5,11 +5,12 @@ import Login from './components/Login';
 import Register from './components/Register';
 import AdminPanel from './components/AdminPanel';
 import CourseModal from './components/CourseModal';
-import { onSnapshot, collection, signInAnonymously } from 'firebase/firestore';
+import { onSnapshot, collection } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc";
-export const APP_VERSION = "2.03";
+export const APP_VERSION = "2.04";
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -50,7 +51,6 @@ export default function App() {
 
     return (
         <div dir="rtl" className={`min-h-screen ${currentUser ? 'bg-white text-slate-900' : 'bg-slate-950 text-white'}`}>
-            {/* מספר גרסה - לבן ובולט בפינה */}
             <div className="fixed bottom-4 left-4 text-white text-[12px] font-black z-[100] drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">V {APP_VERSION}</div>
             
             {!currentUser ? (
