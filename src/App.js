@@ -14,7 +14,7 @@ import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.23"; 
+export const APP_VERSION = "2.24"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -102,7 +102,7 @@ export default function App() {
                             <button onClick={() => setActiveModal({type:'inst'})} className="bg-blue-500 text-white px-3 py-2 rounded-xl text-xs font-black">+ מוסד</button>
                         </div>
                     )}
-                    <span className="font-bold text-slate-500 text-xs">{t('welcome')}, {currentUser.firstName}</span>
+                    <span className="font-bold text-slate-500 text-xs">שלום, {currentUser.firstName}</span>
                     <button onClick={() => setCurrentUser(null)} className="text-red-500 font-black bg-red-50 px-3 py-2 rounded-xl text-xs">{t('logout')}</button>
                 </div>
             </header>
@@ -120,7 +120,7 @@ export default function App() {
                         onEditInst={(i) => setActiveModal({type:'inst', data: i})}
                     />
                 ) : (
-                    <div className="grid md:grid-cols-3 gap-8">
+                    <div className="grid md:grid-cols-3 gap-8 text-center">
                         {localCourses.map(c => {
                             const pct = getCourseProgress(c.id, c.lessons?.length);
                             return (
