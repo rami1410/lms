@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db, auth, appId } from './firebase';
+import { i18n } from './translations';
 import Login from './components/Login';
 import Register from './components/Register';
 import CourseModal from './components/CourseModal';
@@ -10,10 +11,9 @@ import AdminPanel from './components/AdminPanel';
 import { onSnapshot, collection } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
-// החזרנו את ההגדרות הקריטיות שמנעו מהאתר להיבנות!
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc";
-export const APP_VERSION = "2.13"; 
+export const APP_VERSION = "2.14"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -23,10 +23,17 @@ export default function App() {
     const [activeSection, setActiveSection] = useState('courses');
     const [activeModal, setActiveModal] = useState(null);
     const [viewingCourse, setViewingCourse] = useState(null);
-    const [isRegistering, setIsRegistering] = useState(false); // הוחזר לטובת עמוד ההרשמה
+    const [isRegistering, setIsRegistering] = useState(false);
     const [toast, setToast] = useState('');
+    
+    // החזרת השפות והסאונד כדי שעמוד ההתחברות לא יקרוס
+    const [lang, setLang] = useState('he');
+    const audioRef = useRef(null);
+    // פונקציית תרגום בטוחה שלא קורסת אם חסרה מילה
+    const t = (key) => (i18n && i18n[lang] && i18n[lang][key]) ? i18n[lang][key] : key;
 
     useEffect(() => {
+        audioRef.current = new Audio("https://actions.google.com/sounds/v1/science_fiction/low_fuzz_explosion.ogg");
         if (auth) signInAnonymously(auth).catch(()=>{});
         if (db) {
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'courses'), s => setLocalCourses(s.docs.map(d => ({...d.data(), id: d.id}))));
@@ -36,6 +43,7 @@ export default function App() {
     }, []);
 
     const showToast = (m) => { setToast(m); setTimeout(()=>setToast(''), 3000); };
+    const playBoom = () => { if(audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play().catch(()=>{}); } };
 
     const handleLogin = (u, p) => {
         if (u === 'rami' && p === '1234') {
@@ -45,25 +53,26 @@ export default function App() {
             if (found) {
                 if (found.status !== 'approved') showToast("חשבון ממתין לאישור");
                 else setCurrentUser(found);
-            } else { showToast('פרטים שגויים'); }
+            } else { 
+                playBoom();
+                showToast('פרטים שגויים'); 
+            }
         }
     };
 
-    // מסך התחברות או הרשמה
     if (!currentUser) {
         return (
             <div className="min-h-screen bg-slate-950 flex items-center justify-center">
                 <div className="fixed bottom-2 left-2 text-[10px] text-slate-500 font-bold z-[1000]">V {APP_VERSION}</div>
                 {!isRegistering ? (
-                    <Login onLogin={handleLogin} onRegisterToggle={()=>setIsRegistering(true)} />
+                    <Login onLogin={handleLogin} onRegisterToggle={()=>setIsRegistering(true)} lang={lang} setLang={setLang} t={t} playBoom={playBoom} />
                 ) : (
-                    <Register onBack={()=>setIsRegistering(false)} institutions={localInstitutions} users={localUsers} toast={showToast} />
+                    <Register onBack={()=>setIsRegistering(false)} institutions={localInstitutions} users={localUsers} toast={showToast} playBoom={playBoom} />
                 )}
             </div>
         );
     }
 
-    // תצוגת הקורס הפנימי (המסך המפורט)
     if (viewingCourse) return <CourseView course={viewingCourse} onBack={() => setViewingCourse(null)} toast={showToast} isAdmin={currentUser.role === 'admin'} />;
 
     return (
@@ -116,7 +125,6 @@ export default function App() {
                 )}
             </main>
 
-            {/* החלוניות (Modals) שקופצות בעת לחיצה על הכפתורים */}
             {activeModal === 'add_course' && <CourseModal onClose={() => setActiveModal(null)} toast={showToast} geminiKey={process.env.REACT_APP_GEMINI_API_KEY} />}
             {activeModal === 'add_student' && <StudentModal onClose={() => setActiveModal(null)} toast={showToast} />}
             {activeModal === 'add_map' && <MapModal onClose={() => setActiveModal(null)} toast={showToast} />}
