@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth, appId } from './firebase';
 import Login from './components/Login';
+import Register from './components/Register';
 import CourseModal from './components/CourseModal';
 import CourseView from './components/CourseView';
 import StudentModal from './components/StudentModal'; 
@@ -9,7 +10,10 @@ import AdminPanel from './components/AdminPanel';
 import { onSnapshot, collection } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
-export const APP_VERSION = "2.12"; // <-- זה המספר שנראה למטה!
+// החזרנו את ההגדרות הקריטיות שמנעו מהאתר להיבנות!
+export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
+export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc";
+export const APP_VERSION = "2.13"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -19,6 +23,7 @@ export default function App() {
     const [activeSection, setActiveSection] = useState('courses');
     const [activeModal, setActiveModal] = useState(null);
     const [viewingCourse, setViewingCourse] = useState(null);
+    const [isRegistering, setIsRegistering] = useState(false); // הוחזר לטובת עמוד ההרשמה
     const [toast, setToast] = useState('');
 
     useEffect(() => {
@@ -32,8 +37,33 @@ export default function App() {
 
     const showToast = (m) => { setToast(m); setTimeout(()=>setToast(''), 3000); };
 
-    if (!currentUser) return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="fixed bottom-2 left-2 text-[10px] text-slate-500 font-bold z-[1000]">V {APP_VERSION}</div><Login onLogin={(u, p) => u === 'rami' && p === '1234' ? setCurrentUser({firstName:'רמי', role:'admin'}) : showToast('פרטים שגויים')} /></div>;
+    const handleLogin = (u, p) => {
+        if (u === 'rami' && p === '1234') {
+            setCurrentUser({firstName:'רמי', role:'admin'});
+        } else {
+            const found = localUsers.find(x => x.username === u && x.password === p);
+            if (found) {
+                if (found.status !== 'approved') showToast("חשבון ממתין לאישור");
+                else setCurrentUser(found);
+            } else { showToast('פרטים שגויים'); }
+        }
+    };
 
+    // מסך התחברות או הרשמה
+    if (!currentUser) {
+        return (
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <div className="fixed bottom-2 left-2 text-[10px] text-slate-500 font-bold z-[1000]">V {APP_VERSION}</div>
+                {!isRegistering ? (
+                    <Login onLogin={handleLogin} onRegisterToggle={()=>setIsRegistering(true)} />
+                ) : (
+                    <Register onBack={()=>setIsRegistering(false)} institutions={localInstitutions} users={localUsers} toast={showToast} />
+                )}
+            </div>
+        );
+    }
+
+    // תצוגת הקורס הפנימי (המסך המפורט)
     if (viewingCourse) return <CourseView course={viewingCourse} onBack={() => setViewingCourse(null)} toast={showToast} isAdmin={currentUser.role === 'admin'} />;
 
     return (
@@ -86,6 +116,7 @@ export default function App() {
                 )}
             </main>
 
+            {/* החלוניות (Modals) שקופצות בעת לחיצה על הכפתורים */}
             {activeModal === 'add_course' && <CourseModal onClose={() => setActiveModal(null)} toast={showToast} geminiKey={process.env.REACT_APP_GEMINI_API_KEY} />}
             {activeModal === 'add_student' && <StudentModal onClose={() => setActiveModal(null)} toast={showToast} />}
             {activeModal === 'add_map' && <MapModal onClose={() => setActiveModal(null)} toast={showToast} />}
