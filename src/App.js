@@ -10,7 +10,7 @@ import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc";
-export const APP_VERSION = "2.08"; // גרסת התיקון הסופית
+export const APP_VERSION = "2.09"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -41,8 +41,9 @@ export default function App() {
     const playBoom = () => { if(audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play().catch(()=>{}); } };
 
     const handleLogin = (u, p) => {
-        if (u === 'rami' && p === '1234') setCurrentUser({ firstName: 'רמי', role: 'admin', username: 'rami' });
-        else {
+        if (u === 'rami' && p === '1234') {
+            setCurrentUser({ firstName: 'רמי', role: 'admin', username: 'rami' });
+        } else {
             const found = localUsers.find(x => x.username === u && x.password === p);
             if (found) {
                 if (found.status !== 'approved') showToast("חשבון ממתין לאישור");
@@ -54,7 +55,7 @@ export default function App() {
 
     return (
         <div dir="rtl" className={`min-h-screen ${currentUser ? 'bg-white text-slate-900' : 'bg-slate-950 text-white'}`}>
-            <div className="fixed bottom-4 left-4 text-white text-[12px] font-black z-[100] drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">V {APP_VERSION}</div>
+            <div className="fixed bottom-4 left-4 text-white text-[10px] font-black z-[100] drop-shadow-md">V {APP_VERSION}</div>
             
             {!currentUser ? (
                 <div className="relative min-h-screen flex items-center justify-center p-4">
@@ -73,18 +74,18 @@ export default function App() {
                             {currentUser.role === 'admin' && <button onClick={() => setActiveSection('admin')} className={`font-black ${activeSection === 'admin' ? 'text-purple-600' : 'text-slate-400'}`}>ניהול</button>}
                         </div>
                         <div className="flex items-center gap-4">
-                            <div className="font-black bg-slate-100 px-4 py-2 rounded-full text-sm text-slate-900">
-                                {currentUser.username === 'rami' && <span className="ml-1">👑</span>} {currentUser.firstName}
+                            <div className="font-black bg-slate-100 px-4 py-2 rounded-full text-sm">
+                                {currentUser.firstName}
                             </div>
-                            <button onClick={() => setCurrentUser(null)} className="text-red-500 font-black text-xs bg-red-50 p-2 rounded-lg">יציאה</button>
+                            <button onClick={() => setCurrentUser(null)} className="text-red-500 font-black text-xs">יציאה</button>
                         </div>
                     </nav>
 
                     <main className="p-8 max-w-7xl mx-auto w-full">
                         {activeSection === 'courses' && (
-                            <div className="grid md:grid-cols-3 gap-8 text-right text-slate-900">
+                            <div className="grid md:grid-cols-3 gap-8">
                                 {localCourses.map(c => (
-                                    <div key={c.id} className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
+                                    <div key={c.id} className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 text-right">
                                         <h3 className="font-black text-2xl mb-4">{c.name}</h3>
                                         <p className="text-slate-400 font-bold mb-8 text-sm line-clamp-3">{c.summary}</p>
                                         <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black">כניסה</button>
@@ -94,7 +95,7 @@ export default function App() {
                         )}
                         {activeSection === 'admin' && (
                             <div className="space-y-6">
-                                <button onClick={() => setActiveModal('add_course')} className="bg-purple-600 text-white px-8 py-4 rounded-2xl font-black shadow-lg hover:bg-purple-700">+ קורס חדש</button>
+                                <button onClick={() => setActiveModal('add_course')} className="bg-purple-600 text-white px-8 py-4 rounded-2xl font-black shadow-lg">+ קורס חדש</button>
                                 <AdminPanel users={localUsers} institutions={localInstitutions} toast={showToast} />
                             </div>
                         )}
@@ -106,12 +107,12 @@ export default function App() {
                 <CourseModal 
                     onClose={() => setActiveModal(null)} 
                     toast={showToast} 
-                    // שיפור: מנסים לקרוא את המפתח מכל מקום אפשרי בסביבה
-                    geminiKey={process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.REACT_APP_GEMINI_API_KEY} 
+                    // שליחת המפתח תוך בדיקת שני השמות האפשריים
+                    geminiKey={process.env.REACT_APP_GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY} 
                 />
             )}
             
-            {toastMsg && <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-10 py-4 rounded-full z-[100] font-black animate-bounce text-sm">{toastMsg}</div>}
+            {toastMsg && <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-10 py-4 rounded-full z-[100] font-black">{toastMsg}</div>}
         </div>
     );
 }
