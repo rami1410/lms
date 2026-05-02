@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db, auth, appId } from './firebase';
 import { i18n } from './translations';
 import Navigation from './components/Navigation';
@@ -8,15 +8,15 @@ import CourseModal from './components/CourseModal';
 import CourseView from './components/CourseView';
 import StudentModal from './components/StudentModal'; 
 import InstitutionModal from './components/InstitutionModal';
+import MapView from './components/MapView'; // הייבוא הקריטי!
 import AdminPanel from './components/AdminPanel';
 import { onSnapshot, collection, doc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
-// כתובת המפה הבסיסית (תעלה את התמונה שלך ל-PostImage ותחליף כאן את הקישור במידת הצורך)
 export const DEFAULT_MAP_URL = "https://i.postimg.cc/Z5p6mR0H/Gemini-Generated-Image.jpg"; 
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.31"; 
+export const APP_VERSION = "2.32"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -52,6 +52,21 @@ export default function App() {
     const t = (key) => i18n[lang]?.[key] || key;
     const direction = i18n[lang]?.dir || 'rtl';
 
+    const handleLogin = (u, p) => {
+        if (u === 'rami' && p === '1234') {
+            setCurrentUser({id: 'admin-rami', firstName:'רמי', role:'admin'});
+            setViewMode('admin');
+            return;
+        }
+        const found = localUsers.find(x => x.username === u && x.password === p);
+        if (found) {
+            const inst = localInstitutions.find(i => i.id === found.institutionId);
+            if (inst?.expiryDate && new Date(inst.expiryDate) < new Date()) return setToast(t('expiry_msg'));
+            setCurrentUser(found);
+            setViewMode(found.role || 'student');
+        } else { setToast('פרטים שגויים'); }
+    };
+
     const getVisibleCourses = () => {
         if (viewMode === 'admin' || viewMode === 'teacher') return localCourses;
         const inst = localInstitutions.find(i => i.id === currentUser.institutionId);
@@ -59,7 +74,9 @@ export default function App() {
         return localCourses.filter(c => {
             if (c.assignedInstitutions?.includes(inst.id)) return true;
             if (!c.assignedInstitutions || c.assignedInstitutions.length === 0) {
-                return c.fields?.some(f => inst.fields?.includes(f)) || (inst.grades?.some(g => g >= c.fromGrade && g <= c.toGrade));
+                const matchGrade = inst.grades?.some(g => g >= c.fromGrade && g <= c.toGrade);
+                const matchField = c.fields?.some(f => inst.fields?.includes(f));
+                return matchGrade || matchField;
             }
             return false;
         });
@@ -71,16 +88,6 @@ export default function App() {
             : <Register onBack={()=>setIsRegistering(false)} institutions={localInstitutions} users={localUsers} toast={setToast} />}
         </div>
     );
-
-    function handleLogin(u, p) {
-        if (u === 'rami' && p === '1234') { setCurrentUser({id: 'admin-rami', firstName:'רמי', role:'admin'}); setViewMode('admin'); return; }
-        const found = localUsers.find(x => x.username === u && x.password === p);
-        if (found) {
-            const inst = localInstitutions.find(i => i.id === found.institutionId);
-            if (inst?.expiryDate && new Date(inst.expiryDate) < new Date()) return setToast(t('expiry_msg'));
-            setCurrentUser(found); setViewMode(found.role || 'student');
-        } else { setToast('פרטים שגויים'); }
-    }
 
     return (
         <div dir={direction} className={`min-h-screen bg-slate-50 text-slate-900 font-assistant ${direction === 'rtl' ? 'text-right' : 'text-left'}`}>
@@ -105,7 +112,6 @@ export default function App() {
                 ) : (
                     <div className="space-y-8">
                         <h1 className="text-4xl font-black">{t('my_courses')}</h1>
-                        {/* רכיב המפה מקבל את מפת ברירת המחדל אם אין למוסד מפה משלו */}
                         <MapView 
                             courses={getVisibleCourses()} 
                             direction={direction} 
@@ -115,7 +121,7 @@ export default function App() {
                 )}
             </main>
 
-            {activeModal?.type === 'course' && <CourseModal onClose={() => setActiveModal(null)} toast={setToast} existingCourses={localCourses} institutions={localInstitutions} />}
+            {activeModal?.type === 'course' && <CourseModal onClose={() => setActiveModal(null)} toast={setToast} geminiKey={process.env.REACT_APP_GEMINI_API_KEY} existingCourses={localCourses} institutions={localInstitutions} />}
             {activeModal?.type === 'student' && <StudentModal onClose={() => setActiveModal(null)} toast={setToast} institutions={localInstitutions} allUsers={localUsers} initialData={activeModal.data} isAdmin={viewMode === 'admin'} />}
             {activeModal?.type === 'inst' && <InstitutionModal onClose={() => setActiveModal(null)} toast={setToast} initialData={activeModal.data} />}
             
