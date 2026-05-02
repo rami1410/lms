@@ -10,7 +10,7 @@ import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc";
-export const APP_VERSION = "2.05";
+export const APP_VERSION = "2.08"; // גרסת התיקון הסופית
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -27,11 +27,7 @@ export default function App() {
 
     useEffect(() => {
         audioRef.current = new Audio("https://actions.google.com/sounds/v1/science_fiction/low_fuzz_explosion.ogg");
-        
-        // הגנה: מפעילים רק אם Firebase התחבר בהצלחה
-        if (auth) {
-            signInAnonymously(auth).catch(() => {});
-        }
+        if (auth) signInAnonymously(auth).catch(() => {});
         
         if (db) {
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), s => setLocalUsers(s.docs.map(d => ({...d.data(), id: d.id}))));
@@ -49,7 +45,7 @@ export default function App() {
         else {
             const found = localUsers.find(x => x.username === u && x.password === p);
             if (found) {
-                if (found.status !== 'approved') showToast("חשבון ממתין לאישור אדמין");
+                if (found.status !== 'approved') showToast("חשבון ממתין לאישור");
                 else setCurrentUser(found);
             }
             else { playBoom(); showToast("פרטים שגויים"); }
@@ -62,11 +58,6 @@ export default function App() {
             
             {!currentUser ? (
                 <div className="relative min-h-screen flex items-center justify-center p-4">
-                    <div className="fixed inset-0 z-0 pointer-events-none">
-                        <iframe className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[115vw] h-[115vh] opacity-50 scale-125" src={`https://www.youtube.com/embed/${BACKGROUND_VIDEO_ID}?autoplay=1&mute=1&loop=1&playlist=${BACKGROUND_VIDEO_ID}&controls=0&start=30`} frameBorder="0" />
-                        <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"></div>
-                    </div>
-
                     {!isRegistering ? (
                         <Login onLogin={handleLogin} onRegisterToggle={()=>setIsRegistering(true)} lang={lang} setLang={setLang} t={t} playBoom={playBoom} />
                     ) : (
@@ -91,7 +82,7 @@ export default function App() {
 
                     <main className="p-8 max-w-7xl mx-auto w-full">
                         {activeSection === 'courses' && (
-                            <div className="grid md:grid-cols-3 gap-8 text-right">
+                            <div className="grid md:grid-cols-3 gap-8 text-right text-slate-900">
                                 {localCourses.map(c => (
                                     <div key={c.id} className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
                                         <h3 className="font-black text-2xl mb-4">{c.name}</h3>
@@ -103,8 +94,8 @@ export default function App() {
                         )}
                         {activeSection === 'admin' && (
                             <div className="space-y-6">
-                                <button onClick={() => setActiveModal('add_course')} className="bg-purple-600 text-white px-8 py-4 rounded-2xl font-black shadow-lg">+ קורס חדש</button>
-                                <AdminPanel users={localUsers} toast={showToast} />
+                                <button onClick={() => setActiveModal('add_course')} className="bg-purple-600 text-white px-8 py-4 rounded-2xl font-black shadow-lg hover:bg-purple-700">+ קורס חדש</button>
+                                <AdminPanel users={localUsers} institutions={localInstitutions} toast={showToast} />
                             </div>
                         )}
                     </main>
@@ -112,7 +103,12 @@ export default function App() {
             )}
 
             {activeModal === 'add_course' && (
-                <CourseModal onClose={() => setActiveModal(null)} toast={showToast} geminiKey={process.env.NEXT_PUBLIC_GEMINI_API_KEY} />
+                <CourseModal 
+                    onClose={() => setActiveModal(null)} 
+                    toast={showToast} 
+                    // שיפור: מנסים לקרוא את המפתח מכל מקום אפשרי בסביבה
+                    geminiKey={process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.REACT_APP_GEMINI_API_KEY} 
+                />
             )}
             
             {toastMsg && <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-10 py-4 rounded-full z-[100] font-black animate-bounce text-sm">{toastMsg}</div>}
