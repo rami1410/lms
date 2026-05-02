@@ -149,4 +149,12 @@ export default function CourseModal({ onClose, toast, geminiKey }) {
 
                     <div className="space-y-1">
                         <label className="text-xs font-black text-slate-500">קורסים שהם תנאי סף (Prerequisites)</label>
-                        <input className="w-full p-3 bg-slate
+                        <input className="w-full p-3 bg-slate-50 rounded-xl border font-bold outline-none focus:border-purple-500" value={data.prerequisites} onChange={e => setData({...data, prerequisites: e.target.value})} />
+                    </div>
+
+                    <button type="submit" className="w-full bg-purple-600 text-white py-4 rounded-xl font-black text-xl shadow-lg hover:bg-purple-700 transition-all mt-6">אשר ושמור קורס</button>
+                </form>
+            </div>
+        </div>
+    );
+}
