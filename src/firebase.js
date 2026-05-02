@@ -2,26 +2,26 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-const firebaseConfigStr = process.env.NEXT_PUBLIC_FIREBASE_CONFIG;
-let firebaseConfig = {};
+// אנחנו בודקים את כל האפשרויות לשמות המשתנה
+const configStr = process.env.REACT_APP_FIREBASE_CONFIG || process.env.NEXT_PUBLIC_FIREBASE_CONFIG;
+let firebaseConfig = null;
 
-if (firebaseConfigStr) {
+if (configStr) {
     try {
-        firebaseConfig = JSON.parse(firebaseConfigStr);
+        firebaseConfig = JSON.parse(configStr);
     } catch (e) {
-        console.error("שגיאה בקריאת ההגדרות");
+        console.error("Firebase Config Parse Error");
     }
 }
 
 let app, auth, db;
 
-// רשת הביטחון: מתחברים רק אם יש מפתח זמין
 if (firebaseConfig && firebaseConfig.apiKey) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
 } else {
-    console.warn("האתר עובד ללא חיבור לפיירבייס - חסר מפתח (API Key)");
+    console.warn("DEBUG: Firebase Config is missing or invalid");
 }
 
 export { auth, db };
