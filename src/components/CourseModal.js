@@ -36,7 +36,6 @@ export default function CourseModal({ onClose, toast, geminiKey }) {
         if (!data.name) return toast("הזן שם קורס");
         const id = "c-" + Date.now();
         try {
-            // הוספנו lessons: [] כדי שהקורס יהיה מוכן להוספת שיעורים בעמוד הפנימי
             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', id), { ...data, id, lessons: [] });
             toast("הקורס נוצר בהצלחה!");
             onClose();
@@ -52,7 +51,6 @@ export default function CourseModal({ onClose, toast, geminiKey }) {
                 </div>
 
                 <form onSubmit={save} className="space-y-5">
-                    {/* שורה 1: שם ותחום */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className="text-xs font-black text-slate-500">שם הקורס</label>
@@ -66,18 +64,17 @@ export default function CourseModal({ onClose, toast, geminiKey }) {
                         </div>
                     </div>
 
-                    {/* שורה 2: כיתות וציוד */}
                     <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-1">
                             <label className="text-xs font-black text-slate-500">מכיתה</label>
                             <select className="w-full p-3 bg-slate-50 rounded-xl border font-bold outline-none" value={data.fromGrade} onChange={e => setData({...data, fromGrade: e.target.value})}>
-                                <option>א'</option><option>ב'</option><option>ג'</option><option>ד'</option><option>ה'</option><option>ו'</option><option>ז'</option><option>ח'</option><option>ט'</option><option>י'</option><option>יא'</option><option>יב'</option>
+                                <option>א</option><option>ב</option><option>ג</option><option>ד</option><option>ה</option><option>ו</option><option>ז</option><option>ח</option><option>ט</option><option>י</option><option>יא</option><option>יב</option>
                             </select>
                         </div>
                         <div className="space-y-1">
                             <label className="text-xs font-black text-slate-500">עד כיתה</label>
                             <select className="w-full p-3 bg-slate-50 rounded-xl border font-bold outline-none" value={data.toGrade} onChange={e => setData({...data, toGrade: e.target.value})}>
-                                <option>א'</option><option>ב'</option><option>ג'</option><option>ד'</option><option>ה'</option><option>ו'</option><option>ז'</option><option>ח'</option><option>ט'</option><option>י'</option><option>יא'</option><option>יב'</option>
+                                <option>א</option><option>ב</option><option>ג</option><option>ד</option><option>ה</option><option>ו</option><option>ז</option><option>ח</option><option>ט</option><option>י</option><option>יא</option><option>יב</option>
                             </select>
                         </div>
                         <div className="space-y-1">
@@ -88,7 +85,6 @@ export default function CourseModal({ onClose, toast, geminiKey }) {
                         </div>
                     </div>
 
-                    {/* שורה 3: סוג קורס (מחוון) */}
                     <div className="space-y-1">
                         <label className="text-xs font-black text-slate-500">סוג הקורס (מחוון)</label>
                         <div className="flex bg-slate-100 rounded-xl overflow-hidden border">
@@ -100,7 +96,6 @@ export default function CourseModal({ onClose, toast, geminiKey }) {
                         </div>
                     </div>
 
-                    {/* שדות טקסט עם AI */}
                     <div className="space-y-1">
                         <div className="flex justify-between items-center">
                             <label className="text-xs font-black text-slate-500">תמצית הקורס</label>
@@ -152,15 +147,6 @@ export default function CourseModal({ onClose, toast, geminiKey }) {
                         <textarea placeholder="תאר כיצד הלומד מבצע למידה פעילה (תכנון, בנייה, עבודה בידיים)." className="w-full p-3 bg-slate-50 rounded-xl border min-h-[80px] outline-none focus:border-purple-500 text-sm font-medium" value={data.activeLearning} onChange={e => setData({...data, activeLearning: e.target.value})} />
                     </div>
 
-                    {/* תנאי סף */}
                     <div className="space-y-1">
                         <label className="text-xs font-black text-slate-500">קורסים שהם תנאי סף (Prerequisites)</label>
-                        <input className="w-full p-3 bg-slate-50 rounded-xl border font-bold outline-none focus:border-purple-500" value={data.prerequisites} onChange={e => setData({...data, prerequisites: e.target.value})} />
-                    </div>
-
-                    <button type="submit" className="w-full bg-purple-600 text-white py-4 rounded-xl font-black text-xl shadow-lg hover:bg-purple-700 transition-all mt-6">אשר ושמור קורס</button>
-                </form>
-            </div>
-        </div>
-    );
-}
+                        <input className="w-full p-3 bg-slate
