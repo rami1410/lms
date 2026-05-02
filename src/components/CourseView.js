@@ -23,8 +23,24 @@ export default function CourseView({ course, onBack, toast, isAdmin }) {
         } catch (e) { toast("שגיאה בעדכון"); }
     };
 
+    // פונקציה חדשה שמושכת את הלוגו הרשמי של האתר או מציגה אייקון מתאים
+    const getLessonIcon = (type) => {
+        switch(type) {
+            case 'video': 
+                return <img src="https://www.google.com/s2/favicons?domain=youtube.com&sz=64" alt="YouTube" className="w-6 h-6 ml-3 rounded-md shadow-sm bg-white p-0.5" />;
+            case 'padlet': 
+                return <img src="https://www.google.com/s2/favicons?domain=padlet.com&sz=64" alt="Padlet" className="w-6 h-6 ml-3 rounded-md shadow-sm bg-white p-0.5" />;
+            case 'genially': 
+                return <img src="https://www.google.com/s2/favicons?domain=genial.ly&sz=64" alt="Genially" className="w-6 h-6 ml-3 rounded-md shadow-sm bg-white p-0.5" />;
+            case 'text':
+            case 'html': 
+                return <span className="ml-3 text-xl" title="טקסט">📝</span>;
+            default: 
+                return <span className="ml-3 text-xl">📄</span>;
+        }
+    };
+
     const renderContent = (lesson) => {
-        // התיקון ש-Vercel רצה: הוספת title="video" ו-title="content" 
         if (lesson.type === 'video') return <iframe title="video" className="w-full aspect-video rounded-3xl shadow-md" src={lesson.embedUrl.replace('watch?v=', 'embed/')} allowFullScreen />;
         if (['genially', 'padlet', 'slides', 'html'].includes(lesson.type)) return <iframe title="content" className="w-full h-[600px] rounded-3xl border shadow-md" src={lesson.embedUrl} allowFullScreen />;
         return <div className="prose prose-lg max-w-none text-right bg-white p-8 rounded-3xl shadow-sm border border-slate-100" dangerouslySetInnerHTML={{ __html: lesson.content }} />;
@@ -45,8 +61,9 @@ export default function CourseView({ course, onBack, toast, isAdmin }) {
                     <div className="space-y-3 flex-grow">
                         {lessons.length === 0 && <div className="text-slate-400 text-sm font-bold text-center mt-10">אין עדיין תכנים בקורס זה</div>}
                         {lessons.map((l, i) => (
-                            <button key={l.id} onClick={() => setActiveLesson(l)} className={`w-full text-right p-4 rounded-2xl font-bold transition-all ${activeLesson?.id === l.id ? 'bg-purple-600 text-white shadow-lg scale-105' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>
-                                {i+1}. {l.title}
+                            <button key={l.id} onClick={() => setActiveLesson(l)} className={`w-full text-right p-4 rounded-2xl font-bold transition-all flex items-center ${activeLesson?.id === l.id ? 'bg-purple-600 text-white shadow-lg scale-105' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>
+                                {getLessonIcon(l.type)}
+                                <span className="flex-grow">{i+1}. {l.title}</span>
                             </button>
                         ))}
                     </div>
@@ -55,10 +72,10 @@ export default function CourseView({ course, onBack, toast, isAdmin }) {
                         <div className="mt-8 pt-6 border-t space-y-3 bg-slate-50 -mx-6 -mb-6 p-6 rounded-b-[2rem]">
                             <p className="text-xs font-black text-slate-500 mb-2">הוספת תוכן (מנהל):</p>
                             <div className="grid grid-cols-2 gap-2">
-                                <button onClick={()=>addLesson('text')} className="bg-white border shadow-sm p-2 rounded-xl text-xs font-bold hover:bg-purple-50 hover:text-purple-600 transition-all">טקסט/HTML</button>
-                                <button onClick={()=>addLesson('video')} className="bg-white border shadow-sm p-2 rounded-xl text-xs font-bold hover:bg-purple-50 hover:text-purple-600 transition-all">יוטיוב</button>
-                                <button onClick={()=>addLesson('padlet')} className="bg-white border shadow-sm p-2 rounded-xl text-xs font-bold hover:bg-purple-50 hover:text-purple-600 transition-all">פדלט</button>
-                                <button onClick={()=>addLesson('genially')} className="bg-white border shadow-sm p-2 rounded-xl text-xs font-bold hover:bg-purple-50 hover:text-purple-600 transition-all">ג'יניאלי</button>
+                                <button onClick={()=>addLesson('text')} className="bg-white border shadow-sm p-2 rounded-xl text-xs font-bold hover:bg-purple-50 hover:text-purple-600 transition-all flex items-center justify-center gap-1"><span>📝</span> טקסט</button>
+                                <button onClick={()=>addLesson('video')} className="bg-white border shadow-sm p-2 rounded-xl text-xs font-bold hover:bg-purple-50 hover:text-purple-600 transition-all flex items-center justify-center gap-1"><img src="https://www.google.com/s2/favicons?domain=youtube.com&sz=32" className="w-3 h-3" alt="" /> יוטיוב</button>
+                                <button onClick={()=>addLesson('padlet')} className="bg-white border shadow-sm p-2 rounded-xl text-xs font-bold hover:bg-purple-50 hover:text-purple-600 transition-all flex items-center justify-center gap-1"><img src="https://www.google.com/s2/favicons?domain=padlet.com&sz=32" className="w-3 h-3" alt="" /> פדלט</button>
+                                <button onClick={()=>addLesson('genially')} className="bg-white border shadow-sm p-2 rounded-xl text-xs font-bold hover:bg-purple-50 hover:text-purple-600 transition-all flex items-center justify-center gap-1"><img src="https://www.google.com/s2/favicons?domain=genial.ly&sz=32" className="w-3 h-3" alt="" /> ג'יניאלי</button>
                             </div>
                         </div>
                     )}
@@ -69,7 +86,10 @@ export default function CourseView({ course, onBack, toast, isAdmin }) {
                     {activeLesson ? (
                         <div className="max-w-4xl mx-auto pb-20">
                             <div className="flex justify-between items-center mb-8 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                                <h2 className="text-3xl font-black text-slate-800">{activeLesson.title}</h2>
+                                <div className="flex items-center gap-4">
+                                    {getLessonIcon(activeLesson.type)}
+                                    <h2 className="text-3xl font-black text-slate-800">{activeLesson.title}</h2>
+                                </div>
                                 {isAdmin && <button onClick={() => setIsEditing(!isEditing)} className="bg-purple-100 text-purple-700 px-6 py-2 rounded-xl font-black hover:bg-purple-200 transition-colors">{isEditing ? 'סגור עריכה' : '✏️ ערוך שיעור'}</button>}
                             </div>
 
