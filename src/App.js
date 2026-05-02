@@ -14,7 +14,7 @@ import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.19"; 
+export const APP_VERSION = "2.21"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -39,7 +39,14 @@ export default function App() {
         }
     }, []);
 
-    // פונקציית תרגום
+    useEffect(() => {
+        if (db && currentUser?.id) {
+            return onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'progress', currentUser.id), (doc) => {
+                if (doc.exists()) setUserProgress(doc.data());
+            });
+        }
+    }, [currentUser]);
+
     const t = (key) => i18n[lang]?.[key] || key;
     const direction = i18n[lang]?.dir || 'rtl';
 
@@ -56,7 +63,7 @@ export default function App() {
                 }
                 setCurrentUser(found);
                 setViewMode(found.role || 'student');
-            } else { setToast('Error'); }
+            } else { setToast('פרטים שגויים'); }
         }
     };
 
@@ -82,7 +89,6 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    {/* בורר שפות */}
                     <select value={lang} onChange={(e) => setLang(e.target.value)} className="bg-slate-100 border-none rounded-xl px-3 py-2 text-xs font-black outline-none cursor-pointer">
                         {Object.entries(i18n).map(([code, config]) => (
                             <option key={code} value={code}>{config.label}</option>
@@ -114,7 +120,7 @@ export default function App() {
 
             <main className="p-8 max-w-7xl mx-auto">
                 {viewingCourse ? (
-                    <CourseView course={viewingCourse} onBack={() => setViewingCourse(null)} toast={setToast} isAdmin={viewMode === 'admin'} t={t} />
+                    <CourseView course={viewingCourse} onBack={() => setViewingCourse(null)} toast={setToast} isAdmin={viewMode === 'admin'} userId={currentUser.id} userProgress={userProgress[viewingCourse.id] || {}} />
                 ) : activeSection === 'admin' && viewMode === 'admin' ? (
                     <AdminPanel users={localUsers} institutions={localInstitutions} toast={setToast} />
                 ) : (
@@ -129,7 +135,14 @@ export default function App() {
                 )}
             </main>
 
-            {activeModal === 'add_course' && <CourseModal onClose={() => setActiveModal(null)} toast={setToast} />}
+            {activeModal === 'add_course' && (
+                <CourseModal 
+                    onClose={() => setActiveModal(null)} 
+                    toast={setToast} 
+                    geminiKey={process.env.REACT_APP_GEMINI_API_KEY} 
+                    existingCourses={localCourses} 
+                />
+            )}
             {activeModal === 'add_student' && <StudentModal onClose={() => setActiveModal(null)} toast={setToast} institutions={localInstitutions} allUsers={localUsers} />}
             {activeModal === 'add_inst' && <InstitutionModal onClose={() => setActiveModal(null)} toast={setToast} />}
             {activeModal === 'add_map' && <MapModal onClose={() => setActiveModal(null)} toast={setToast} />}
