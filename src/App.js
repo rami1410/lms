@@ -8,29 +8,27 @@ import CourseView from './components/CourseView';
 import StudentModal from './components/StudentModal'; 
 import MapModal from './components/MapModal'; 
 import AdminPanel from './components/AdminPanel';
-import { onSnapshot, collection } from 'firebase/firestore';
+import { onSnapshot, collection, doc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc";
-export const APP_VERSION = "2.14"; 
+export const APP_VERSION = "2.15"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
+    const [viewMode, setViewMode] = useState('admin'); // 'admin', 'teacher', 'student'
     const [localCourses, setLocalCourses] = useState([]);
     const [localUsers, setLocalUsers] = useState([]);
     const [localInstitutions, setLocalInstitutions] = useState([]);
+    const [userProgress, setUserProgress] = useState({});
     const [activeSection, setActiveSection] = useState('courses');
     const [activeModal, setActiveModal] = useState(null);
     const [viewingCourse, setViewingCourse] = useState(null);
     const [isRegistering, setIsRegistering] = useState(false);
     const [toast, setToast] = useState('');
-    
-    // החזרת השפות והסאונד כדי שעמוד ההתחברות לא יקרוס
     const [lang, setLang] = useState('he');
     const audioRef = useRef(null);
-    // פונקציית תרגום בטוחה שלא קורסת אם חסרה מילה
-    const t = (key) => (i18n && i18n[lang] && i18n[lang][key]) ? i18n[lang][key] : key;
 
     useEffect(() => {
         audioRef.current = new Audio("https://actions.google.com/sounds/v1/science_fiction/low_fuzz_explosion.ogg");
@@ -42,93 +40,122 @@ export default function App() {
         }
     }, []);
 
-    const showToast = (m) => { setToast(m); setTimeout(()=>setToast(''), 3000); };
-    const playBoom = () => { if(audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play().catch(()=>{}); } };
+    // טעינת התקדמות אישית כשהמשתמש מתחבר
+    useEffect(() => {
+        if (db && currentUser?.id) {
+            return onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'progress', currentUser.id), (doc) => {
+                if (doc.exists()) setUserProgress(doc.data());
+            });
+        }
+    }, [currentUser]);
 
+    const t = (key) => (i18n && i18n[lang] && i18n[lang][key]) ? i18n[lang][key] : key;
+    const showToast = (m) => { setToast(m); setTimeout(()=>setToast(''), 3000); };
+    
     const handleLogin = (u, p) => {
         if (u === 'rami' && p === '1234') {
-            setCurrentUser({firstName:'רמי', role:'admin'});
+            setCurrentUser({id: 'admin-rami', firstName:'רמי', role:'admin'});
+            setViewMode('admin');
         } else {
             const found = localUsers.find(x => x.username === u && x.password === p);
             if (found) {
-                if (found.status !== 'approved') showToast("חשבון ממתין לאישור");
-                else setCurrentUser(found);
-            } else { 
-                playBoom();
-                showToast('פרטים שגויים'); 
-            }
+                setCurrentUser(found);
+                setViewMode(found.role);
+            } else { showToast('פרטים שגויים'); }
         }
     };
 
-    if (!currentUser) {
-        return (
-            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-                <div className="fixed bottom-2 left-2 text-[10px] text-slate-500 font-bold z-[1000]">V {APP_VERSION}</div>
-                {!isRegistering ? (
-                    <Login onLogin={handleLogin} onRegisterToggle={()=>setIsRegistering(true)} lang={lang} setLang={setLang} t={t} playBoom={playBoom} />
-                ) : (
-                    <Register onBack={()=>setIsRegistering(false)} institutions={localInstitutions} users={localUsers} toast={showToast} playBoom={playBoom} />
-                )}
-            </div>
-        );
-    }
+    const getCourseProgress = (courseId, lessonsCount) => {
+        if (!lessonsCount || !userProgress[courseId]) return 0;
+        const completed = Object.values(userProgress[courseId]).filter(v => v === true).length;
+        return Math.round((completed / lessonsCount) * 100);
+    };
 
-    if (viewingCourse) return <CourseView course={viewingCourse} onBack={() => setViewingCourse(null)} toast={showToast} isAdmin={currentUser.role === 'admin'} />;
+    if (!currentUser) return (
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+            {!isRegistering ? <Login onLogin={handleLogin} onRegisterToggle={()=>setIsRegistering(true)} lang={lang} setLang={setLang} t={t} /> : <Register onBack={()=>setIsRegistering(false)} institutions={localInstitutions} users={localUsers} toast={showToast} />}
+        </div>
+    );
+
+    if (viewingCourse) return (
+        <CourseView 
+            course={viewingCourse} 
+            onBack={() => setViewingCourse(null)} 
+            toast={showToast} 
+            isAdmin={viewMode === 'admin'} 
+            isTeacher={viewMode === 'teacher'}
+            userProgress={userProgress[viewingCourse.id] || {}}
+            userId={currentUser.id}
+        />
+    );
 
     return (
-        <div dir="rtl" className="min-h-screen bg-slate-50 text-slate-900 font-assistant">
-            <div className="fixed bottom-2 left-2 text-[10px] text-slate-400 font-bold z-[1000]">V {APP_VERSION}</div>
-
+        <div dir="rtl" className="min-h-screen bg-slate-50 text-slate-900 font-assistant pb-20">
             <nav className="bg-white border-b px-8 py-4 flex justify-between items-center sticky top-0 z-50 shadow-sm">
                 <div className="flex items-center gap-6">
                     <span className="text-2xl font-black">LMS<span className="text-purple-600">Pro</span></span>
-                    <button onClick={() => setActiveSection('courses')} className={`font-black transition-all pb-1 ${activeSection === 'courses' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-slate-400 hover:text-slate-600'}`}>הקורסים שלי</button>
-                    {currentUser.role === 'admin' && (
-                        <button onClick={() => setActiveSection('admin')} className={`font-black transition-all pb-1 ${activeSection === 'admin' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-slate-400 hover:text-slate-600'}`}>ניהול מערכת</button>
+                    {(viewMode === 'admin' || viewMode === 'teacher') && (
+                        <button onClick={() => setActiveSection('courses')} className={`font-black ${activeSection === 'courses' ? 'text-purple-600' : 'text-slate-400'}`}>הקורסים שלי</button>
+                    )}
+                    {viewMode === 'admin' && (
+                        <button onClick={() => setActiveSection('admin')} className={`font-black ${activeSection === 'admin' ? 'text-purple-600' : 'text-slate-400'}`}>ניהול מערכת</button>
                     )}
                 </div>
+
+                {/* כפתורי החלפת מצב תצוגה לאדמין */}
+                {currentUser.role === 'admin' && (
+                    <div className="flex bg-slate-100 p-1 rounded-2xl gap-1">
+                        <button onClick={() => setViewMode(viewMode === 'student' ? 'admin' : 'student')} className={`px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-xs transition-all ${viewMode === 'student' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-500 hover:bg-white'}`}>
+                            <span>👨‍🎓</span> תצוגת תלמיד
+                        </button>
+                        <button onClick={() => setViewMode(viewMode === 'teacher' ? 'admin' : 'teacher')} className={`px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-xs transition-all ${viewMode === 'teacher' ? 'bg-blue-500 text-white shadow-md' : 'text-slate-500 hover:bg-white'}`}>
+                            <span>👨‍🏫</span> תצוגת מורה
+                        </button>
+                    </div>
+                )}
+
                 <div className="flex items-center gap-4">
-                    <span className="font-bold text-slate-500">שלום, {currentUser.firstName}</span>
+                    <span className="font-bold text-slate-400 text-xs">מצב: {viewMode === 'admin' ? 'מנהל' : viewMode === 'teacher' ? 'מורה' : 'תלמיד'}</span>
                     <button onClick={() => setCurrentUser(null)} className="text-red-500 font-black bg-red-50 px-4 py-2 rounded-xl text-xs">יציאה</button>
                 </div>
             </nav>
 
             <main className="p-8 max-w-7xl mx-auto">
                 {activeSection === 'courses' && (
-                    <>
-                        <h1 className="text-4xl font-black mb-12">הקורסים שלי</h1>
-                        <div className="grid md:grid-cols-3 gap-8 text-right">
-                            {localCourses.map(c => (
-                                <div key={c.id} className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col">
-                                    <h3 className="font-black text-2xl mb-4">{c.name}</h3>
-                                    <p className="text-slate-400 text-sm mb-8 line-clamp-3">{c.summary}</p>
-                                    <button onClick={() => setViewingCourse(c)} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-purple-600 transition-colors">כניסה לקורס</button>
+                    <div className="grid md:grid-cols-3 gap-10">
+                        {localCourses.map(c => {
+                            const pct = getCourseProgress(c.id, c.lessons?.length);
+                            return (
+                                <div key={c.id} className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col items-center text-center">
+                                    {/* עוגת התקדמות */}
+                                    <div className="relative w-24 h-24 mb-6">
+                                        <svg className="w-full h-full -rotate-90">
+                                            <circle cx="48" cy="48" r="40" stroke="#f1f5f9" strokeWidth="8" fill="transparent" />
+                                            <circle cx="48" cy="48" r="40" stroke="#9333ea" strokeWidth="8" fill="transparent" 
+                                                strokeDasharray="251.2" strokeDashoffset={251.2 - (251.2 * pct) / 100} strokeLinecap="round" className="transition-all duration-1000" />
+                                        </svg>
+                                        <div className="absolute inset-0 flex items-center justify-center font-black text-lg text-purple-600">{pct}%</div>
+                                    </div>
+                                    <h3 className="font-black text-2xl mb-2">{c.name}</h3>
+                                    <p className="text-slate-400 text-sm mb-8 line-clamp-2">{c.summary}</p>
+                                    <button onClick={() => setViewingCourse(c)} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-purple-600 transition-colors">כניסה ללמידה</button>
                                 </div>
-                            ))}
-                        </div>
-                    </>
+                            );
+                        })}
+                    </div>
                 )}
-
-                {activeSection === 'admin' && (
-                    <div className="space-y-8 text-right">
-                        <div className="bg-white p-10 rounded-[3.5rem] shadow-sm border border-slate-100">
-                            <h2 className="text-3xl font-black mb-8">לוח בקרה למנהל</h2>
-                            <div className="flex flex-wrap gap-4">
-                                <button onClick={() => setActiveModal('add_course')} className="bg-purple-600 hover:bg-purple-700 text-white px-10 py-5 rounded-3xl font-black shadow-lg transition-all text-lg">+ קורס חדש</button>
-                                <button onClick={() => setActiveModal('add_student')} className="bg-emerald-500 hover:bg-emerald-600 text-white px-10 py-5 rounded-3xl font-black shadow-lg transition-all text-lg">+ תלמיד חדש</button>
-                                <button onClick={() => setActiveModal('add_map')} className="bg-blue-500 hover:bg-blue-600 text-white px-10 py-5 rounded-3xl font-black shadow-lg transition-all text-lg">+ מפת למידה</button>
-                            </div>
+                {activeSection === 'admin' && viewMode === 'admin' && (
+                    <div className="space-y-6">
+                        <div className="flex gap-4">
+                            <button onClick={() => setActiveModal('add_course')} className="bg-purple-600 text-white px-8 py-4 rounded-2xl font-black shadow-lg">+ קורס</button>
+                            <button onClick={() => setActiveModal('add_student')} className="bg-emerald-500 text-white px-8 py-4 rounded-2xl font-black shadow-lg">+ תלמיד</button>
                         </div>
-                        
                         <AdminPanel users={localUsers} institutions={localInstitutions} toast={showToast} />
                     </div>
                 )}
             </main>
-
             {activeModal === 'add_course' && <CourseModal onClose={() => setActiveModal(null)} toast={showToast} geminiKey={process.env.REACT_APP_GEMINI_API_KEY} />}
             {activeModal === 'add_student' && <StudentModal onClose={() => setActiveModal(null)} toast={showToast} />}
-            {activeModal === 'add_map' && <MapModal onClose={() => setActiveModal(null)} toast={showToast} />}
-            
             {toast && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-full font-black z-[300] shadow-2xl">{toast}</div>}
         </div>
     );
