@@ -2,26 +2,26 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-const configStr = process.env.REACT_APP_FIREBASE_CONFIG || process.env.NEXT_PUBLIC_FIREBASE_CONFIG;
-let firebaseConfig = null;
-
-if (configStr) {
-    try {
-        firebaseConfig = typeof configStr === 'string' ? JSON.parse(configStr) : configStr;
-    } catch (e) {
-        console.error("Firebase Config JSON Parse Error.");
-    }
-}
+// עוקפים את Vercel לחלוטין! ההגדרות המדויקות שלך מוטמעות כאן:
+const firebaseConfig = {
+  apiKey: "AIzaSyDA1QiipXZIFxGFq669qWJYbOhsdcsdUUo",
+  authDomain: "ai-studio-applet-webapp-e86a9.firebaseapp.com",
+  projectId: "ai-studio-applet-webapp-e86a9",
+  storageBucket: "ai-studio-applet-webapp-e86a9.firebasestorage.app",
+  messagingSenderId: "617367384988",
+  appId: "1:617367384988:web:853260e80ca51028630e59"
+};
 
 let app, auth, db;
 
-if (firebaseConfig && firebaseConfig.apiKey) {
+try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    // הנה תיקון הקסם: אנחנו מפנים אותו לשם המדויק של מסד הנתונים שלך!
+    // החיבור למסד הנתונים עם השם הארוך שלך:
     db = getFirestore(app, "ai-studio-37d2b621-79f2-4136-9bb1-86fa0640d787");
-} else {
-    console.error("CRITICAL: Firebase Config is missing.");
+    console.log("Firebase Connected Successfully!");
+} catch (error) {
+    console.error("Firebase Initialization Error:", error);
 }
 
 export { auth, db };
