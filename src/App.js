@@ -9,8 +9,7 @@ import AdminPanel from './components/AdminPanel';
 import { onSnapshot, collection } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
-// הגדרת גרסה כדי לוודא עדכון
-export const APP_VERSION = "2.11"; 
+export const APP_VERSION = "2.12"; // <-- זה המספר שנראה למטה!
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -33,14 +32,13 @@ export default function App() {
 
     const showToast = (m) => { setToast(m); setTimeout(()=>setToast(''), 3000); };
 
-    if (!currentUser) return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><Login onLogin={(u, p) => u === 'rami' && p === '1234' ? setCurrentUser({firstName:'רמי', role:'admin'}) : showToast('פרטים שגויים')} /></div>;
+    if (!currentUser) return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="fixed bottom-2 left-2 text-[10px] text-slate-500 font-bold z-[1000]">V {APP_VERSION}</div><Login onLogin={(u, p) => u === 'rami' && p === '1234' ? setCurrentUser({firstName:'רמי', role:'admin'}) : showToast('פרטים שגויים')} /></div>;
 
     if (viewingCourse) return <CourseView course={viewingCourse} onBack={() => setViewingCourse(null)} toast={showToast} isAdmin={currentUser.role === 'admin'} />;
 
     return (
         <div dir="rtl" className="min-h-screen bg-slate-50 text-slate-900 font-assistant">
-            {/* מספר גרסה בפינה */}
-            <div className="fixed bottom-2 left-2 text-[10px] text-slate-300 font-bold z-[1000]">V {APP_VERSION}</div>
+            <div className="fixed bottom-2 left-2 text-[10px] text-slate-400 font-bold z-[1000]">V {APP_VERSION}</div>
 
             <nav className="bg-white border-b px-8 py-4 flex justify-between items-center sticky top-0 z-50 shadow-sm">
                 <div className="flex items-center gap-6">
