@@ -10,7 +10,7 @@ import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc";
-export const APP_VERSION = "2.04";
+export const APP_VERSION = "2.05";
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -27,10 +27,17 @@ export default function App() {
 
     useEffect(() => {
         audioRef.current = new Audio("https://actions.google.com/sounds/v1/science_fiction/low_fuzz_explosion.ogg");
-        signInAnonymously(auth);
-        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), s => setLocalUsers(s.docs.map(d => ({...d.data(), id: d.id}))));
-        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'courses'), s => setLocalCourses(s.docs.map(d => ({...d.data(), id: d.id}))));
-        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'institutions'), s => setLocalInstitutions(s.docs.map(d => ({...d.data(), id: d.id}))));
+        
+        // הגנה: מפעילים רק אם Firebase התחבר בהצלחה
+        if (auth) {
+            signInAnonymously(auth).catch(() => {});
+        }
+        
+        if (db) {
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), s => setLocalUsers(s.docs.map(d => ({...d.data(), id: d.id}))));
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'courses'), s => setLocalCourses(s.docs.map(d => ({...d.data(), id: d.id}))));
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'institutions'), s => setLocalInstitutions(s.docs.map(d => ({...d.data(), id: d.id}))));
+        }
     }, []);
 
     const t = (key) => i18n[lang][key] || key;
