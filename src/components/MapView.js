@@ -1,119 +1,115 @@
 import React, { useMemo } from 'react';
 
-export default function MapView({ courses, institutions, currentUser, t, direction, mapBackground }) {
+export default function MapView({ courses, direction, mapBackground }) {
     
-    // 1. אלגוריתם מיקום אסתטי - מחשב קואורדינטות (x,y) לכל קורס
+    // חישוב מיקומים לפי מקצועות בצורה אסתטית על פני המפה
     const coursePositions = useMemo(() => {
         const positions = {};
         const subjects = [...new Set(courses.flatMap(c => c.fields || []))];
-        const center = { x: 50, y: 50 }; // נקודת התחלה (מרכז המפה)
         
+        // הגדרת "אזורים" במפה לפי אחוזים (x, y)
+        const zones = [
+            { x: 15, y: 15 }, // איים צפים
+            { x: 80, y: 20 }, // יער פטריות
+            { x: 35, y: 30 }, // הרי קרח
+            { x: 20, y: 70 }, // מדבר
+            { x: 65, y: 45 }, // ממלכה ירוקה
+            { x: 65, y: 85 }, // הרי געש
+        ];
+
         subjects.forEach((subject, sIdx) => {
-            const angle = (sIdx / subjects.length) * 2 * Math.PI;
+            const zone = zones[sIdx % zones.length];
             const subjectCourses = courses.filter(c => c.fields?.includes(subject));
             
             subjectCourses.forEach((course, cIdx) => {
-                // חישוב מרחק - ככל שיש יותר דרישות קדם, הקורס רחוק יותר מהמרכז
-                const distance = 15 + (course.prerequisites?.length || 0) * 15 + (cIdx * 5);
-                const x = center.x + Math.cos(angle) * distance;
-                const y = center.y + Math.sin(angle) * distance;
-                positions[course.id] = { x, y, subject };
+                // פיזור קל בתוך האזור כדי שלא יעלו אחד על השני
+                const offsetX = (cIdx % 3) * 6;
+                const offsetY = Math.floor(cIdx / 3) * 6;
+                positions[course.id] = { 
+                    x: zone.x + offsetX, 
+                    y: zone.y + offsetY, 
+                    subject 
+                };
             });
         });
         return positions;
     }, [courses]);
 
-    // 2. פונקציית עזר לציור שבילים
     const renderPaths = () => {
-        const paths = [];
-        courses.forEach(course => {
+        return courses.map(course => {
             const pos = coursePositions[course.id];
-            if (!pos) return;
+            if (!pos || !course.prerequisites?.length) return null;
 
-            if (!course.prerequisites || course.prerequisites.length === 0) {
-                // שביל מנקודת ההתחלה (50,50)
-                paths.push(<line key={`p-start-${course.id}`} x1="50%" y1="50%" x2={`${pos.x}%`} y2={`${pos.y}%`} stroke="#cbd5e1" strokeWidth="2" strokeDasharray="5,5" />);
-            } else {
-                // שביל מהקורס הקודם
-                course.prerequisites.forEach(preName => {
-                    const preCourse = courses.find(c => c.name === preName);
-                    if (preCourse && coursePositions[preCourse.id]) {
-                        const prePos = coursePositions[preCourse.id];
-                        paths.push(<line key={`p-${preCourse.id}-${course.id}`} x1={`${prePos.x}%`} y1={`${prePos.y}%`} x2={`${pos.x}%`} y2={`${pos.y}%`} stroke="#94a3b8" strokeWidth="3" />);
-                    }
-                });
-            }
+            return course.prerequisites.map(preName => {
+                const preCourse = courses.find(c => c.name === preName);
+                const prePos = preCourse ? coursePositions[preCourse.id] : null;
+                if (!prePos) return null;
+
+                return (
+                    <line 
+                        key={`path-${course.id}-${preName}`}
+                        x1={`${prePos.x}%`} y1={`${prePos.y}%`} 
+                        x2={`${pos.x}%`} y2={`${pos.y}%`} 
+                        stroke="rgba(255,255,255,0.5)" strokeWidth="3" strokeDasharray="8,4"
+                    />
+                );
+            });
         });
-        return paths;
     };
 
-    // 3. הגדרת צבעים למקצועות
     const subjectColors = {
-        'רובוטיקה': '#8b5cf6', 'תכנות': '#3b82f6', 'מדעים': '#10b981', 'אמנות': '#f59e0b'
+        'רובוטיקה': '#ef4444', 'תכנות': '#3b82f6', 'מדעים': '#10b981', 'אמנות': '#f59e0b', 'מיומנויות': '#8b5cf6'
     };
 
     return (
-        <div className="relative w-full aspect-video rounded-[3rem] overflow-hidden shadow-2xl border-8 border-white bg-slate-200">
-            {/* תמונת רקע המפה */}
-            {mapBackground ? (
-                <img src={mapBackground} className="absolute inset-0 w-full h-full object-cover opacity-80" alt="Map" />
-            ) : (
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-emerald-50 flex items-center justify-center text-slate-300 font-black">העלה מפה בהגדרות</div>
-            )}
+        <div className="relative w-full aspect-video rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white group">
+            {/* הרקע - המפה שלך */}
+            <img src={mapBackground} className="absolute inset-0 w-full h-full object-cover transition-transform duration-[20s] group-hover:scale-110" alt="Learning Map" />
+            
+            {/* שכבת עמעום קלה כדי שהתכנים יבלטו */}
+            <div className="absolute inset-0 bg-black/10 pointer-events-none"></div>
 
-            {/* שכבת ה-SVG לשבילים */}
             <svg className="absolute inset-0 w-full h-full pointer-events-none">
                 {renderPaths()}
             </svg>
 
-            {/* נקודת התחלה */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full shadow-lg border-4 border-slate-800 z-10 flex items-center justify-center">
-                🚩
-            </div>
-
-            {/* הקורסים (הישובים) */}
             {courses.map(course => {
                 const pos = coursePositions[course.id];
                 if (!pos) return null;
 
-                let size = "w-6 h-6"; // מיומנות
-                let style = { backgroundColor: subjectColors[pos.subject] || '#64748b' };
-                let icon = "🏡";
-
-                if (course.type === 'חקר') { 
-                    size = "w-10 h-10"; 
-                    icon = "🏰"; 
-                }
-                if (course.type === 'פרויקטים') { 
-                    size = "w-12 h-12"; 
-                    icon = "🌆"; 
-                    style.boxShadow = "0 0 15px currentColor"; 
-                }
+                let icon = "🏡"; // מיומנות
+                let size = "w-10 h-10";
+                if (course.type === 'חקר') { icon = "🏰"; size = "w-14 h-14"; }
+                if (course.type === 'פרויקטים') { icon = "🌆"; size = "w-16 h-16 animate-pulse"; }
 
                 return (
                     <div 
                         key={course.id}
-                        className={`absolute -translate-x-1/2 -translate-y-1/2 ${size} rounded-xl shadow-xl flex items-center justify-center cursor-pointer hover:scale-125 transition-transform z-20 group`}
-                        style={{ ...style, left: `${pos.x}%`, top: `${pos.y}%`, color: style.backgroundColor }}
+                        className={`absolute -translate-x-1/2 -translate-y-1/2 ${size} flex flex-col items-center justify-center cursor-pointer transition-all hover:scale-125 z-20 group/node`}
+                        style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                     >
-                        <span className="text-white drop-shadow-md">{icon}</span>
-                        {/* Tooltip עם שם הקורס */}
-                        <div className="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] px-2 py-1 rounded-lg whitespace-nowrap font-black">
-                            {course.name}
+                        <div className="relative">
+                            <span className="text-3xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">{icon}</span>
+                            {/* שם הקורס צף מעל */}
+                            <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur px-3 py-1 rounded-full shadow-lg border border-white/50 opacity-0 group-hover/node:opacity-100 transition-opacity whitespace-nowrap">
+                                <span className="text-[10px] font-black text-slate-800">{course.name}</span>
+                            </div>
                         </div>
                     </div>
                 );
             })}
 
-            {/* מקרא צבעים בצד */}
-            <div className={`absolute bottom-6 ${direction === 'rtl' ? 'right-6' : 'left-6'} bg-white/90 backdrop-blur p-4 rounded-3xl shadow-xl border border-white/50 space-y-2`}>
-                <p className="font-black text-xs border-b pb-2 mb-2">מקרא מקצועות</p>
-                {Object.entries(subjectColors).map(([sub, color]) => (
-                    <div key={sub} className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></div>
-                        <span className="text-[10px] font-bold">{sub}</span>
-                    </div>
-                ))}
+            {/* מקרא צבעים */}
+            <div className="absolute top-6 left-6 bg-white/80 backdrop-blur-md p-4 rounded-[2rem] shadow-xl border border-white/40 hidden md:block">
+                <p className="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-tighter">Legend</p>
+                <div className="space-y-2">
+                    {Object.entries(subjectColors).map(([sub, color]) => (
+                        <div key={sub} className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }}></div>
+                            <span className="text-[9px] font-bold text-slate-700">{sub}</span>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );
