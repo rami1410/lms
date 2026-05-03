@@ -17,13 +17,17 @@ import { signInAnonymously } from 'firebase/auth';
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const DEFAULT_MAP_URL = "https://i.postimg.cc/Z5p6mR0H/Gemini-Generated-Image.jpg"; 
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.35"; 
+export const APP_VERSION = "2.35"; // עודכן ל-2.35
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
     const [lang, setLang] = useState('he');
     const [viewMode, setViewMode] = useState('admin'); 
-    const [localCourses, setLocalCourses] = useState([]); // כאן הם נשמרים
+    
+    // מצב תצוגה חדש - מאפשר לעבור בין המפה לטבלה הרגילה
+    const [courseViewType, setCourseViewType] = useState('map'); 
+
+    const [localCourses, setLocalCourses] = useState([]); 
     const [localUsers, setLocalUsers] = useState([]);
     const [localInstitutions, setLocalInstitutions] = useState([]);
     const [localMaps, setLocalMaps] = useState([]);
@@ -37,7 +41,6 @@ export default function App() {
     useEffect(() => {
         if (auth) signInAnonymously(auth).catch(()=>{});
         if (db) {
-            // כאן תוקנה התקלה: setLocalCourses במקום localCourses!
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'courses'), s => setLocalCourses(s.docs.map(d => ({...d.data(), id: d.id}))));
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), s => setLocalUsers(s.docs.map(d => ({...d.data(), id: d.id}))));
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'institutions'), s => setLocalInstitutions(s.docs.map(d => ({...d.data(), id: d.id}))));
@@ -107,17 +110,52 @@ export default function App() {
                     <AdminPanel 
                         users={viewMode === 'teacher' ? localUsers.filter(u => u.institutionId === currentUser.institutionId) : localUsers} 
                         institutions={localInstitutions} 
-                        courses={localCourses} /* העברת הקורסים לטבלה */
+                        courses={localCourses}
                         toast={setToast} 
                         isAdmin={viewMode === 'admin'} 
                         onEditUser={(u) => setActiveModal({type:'student', data: u})}
                         onEditInst={(i) => setActiveModal({type:'inst', data: i})}
-                        onEditCourse={(c) => setActiveModal({type:'course', data: c})} /* עריכת קורס מהטבלה */
+                        onEditCourse={(c) => setActiveModal({type:'course', data: c})}
                     />
                 ) : (
-                    <div className="space-y-8 text-right">
-                        <h1 className="text-4xl font-black">{t('my_courses')}</h1>
-                        <MapView courses={getVisibleCourses()} direction={direction} mapBackground={currentMapUrl} />
+                    <div className="space-y-6 text-right">
+                        {/* כותרת עם מתג בחירת תצוגה */}
+                        <div className="flex justify-between items-center bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
+                            <h1 className="text-3xl font-black text-slate-800">{t('my_courses')}</h1>
+                            <div className="flex bg-slate-100 p-1 rounded-2xl gap-1">
+                                <button onClick={() => setCourseViewType('map')} className={`px-4 py-2 rounded-xl text-sm font-black transition-all ${courseViewType === 'map' ? 'bg-white shadow-md text-purple-600' : 'text-slate-500 hover:text-slate-700'}`}>🗺️ תצוגת מפה</button>
+                                <button onClick={() => setCourseViewType('grid')} className={`px-4 py-2 rounded-xl text-sm font-black transition-all ${courseViewType === 'grid' ? 'bg-white shadow-md text-purple-600' : 'text-slate-500 hover:text-slate-700'}`}>⏹️ תצוגה קלאסית</button>
+                            </div>
+                        </div>
+
+                        {/* הצגת מפה או תצוגה קלאסית לפי בחירת המשתמש */}
+                        {courseViewType === 'map' ? (
+                            <MapView 
+                                courses={getVisibleCourses()} 
+                                direction={direction} 
+                                mapBackground={currentMapUrl} 
+                                userProgress={userProgress}
+                                setViewingCourse={setViewingCourse}
+                            />
+                        ) : (
+                            <div className="grid md:grid-cols-3 gap-8">
+                                {getVisibleCourses().map(c => {
+                                    const completed = userProgress[c.id] ? Object.values(userProgress[c.id]).filter(v => v === true).length : 0;
+                                    const pct = c.lessons?.length ? Math.round((completed / c.lessons.length) * 100) : 0;
+                                    return (
+                                        <div key={c.id} onClick={() => setViewingCourse(c)} className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col items-center group hover:scale-[1.02] transition-all cursor-pointer">
+                                            <div className="relative w-24 h-24 mb-4">
+                                                <svg className="w-full h-full -rotate-90"><circle cx="48" cy="48" r="40" stroke="#f1f5f9" strokeWidth="8" fill="transparent" /><circle cx="48" cy="48" r="40" stroke="#9333ea" strokeWidth="8" fill="transparent" strokeDasharray="251.2" strokeDashoffset={251.2 - (251.2 * pct) / 100} strokeLinecap="round" className="transition-all duration-1000" /></svg>
+                                                <div className="absolute inset-0 flex items-center justify-center font-black text-lg text-purple-600">{pct}%</div>
+                                            </div>
+                                            <h3 className="font-black text-xl mb-4 text-slate-800 text-center">{c.name}</h3>
+                                            <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black group-hover:bg-purple-600 transition-colors shadow-lg">כניסה לקורס</button>
+                                        </div>
+                                    );
+                                })}
+                                {getVisibleCourses().length === 0 && <div className="col-span-3 text-center text-slate-400 font-bold py-10">לא נמצאו קורסים המותאמים למוסד זה.</div>}
+                            </div>
+                        )}
                     </div>
                 )}
             </main>
