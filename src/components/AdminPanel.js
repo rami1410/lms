@@ -1,7 +1,37 @@
 import React, { useState } from 'react';
+import { db, appId } from '../firebase';
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 
-export default function AdminPanel({ users, institutions, toast, isAdmin, onEditUser, onEditInst }) {
+export default function AdminPanel({ users, institutions, courses, toast, isAdmin, onEditUser, onEditInst, onEditCourse }) {
+    const [filters, setFilters] = useState({});
+
+    const handleFilter = (col, val) => setFilters({...filters, [col]: val.toLowerCase()});
+
+    const filteredInst = institutions.filter(i => 
+        (!filters.instName || i.name.toLowerCase().includes(filters.instName)) &&
+        (!filters.instPrefix || i.prefix.toLowerCase().includes(filters.instPrefix))
+    );
+
+    const filteredUsers = users.filter(u => 
+        (!filters.userName || (u.firstName + ' ' + u.lastName).toLowerCase().includes(filters.userName)) &&
+        (!filters.userRole || u.role.toLowerCase().includes(filters.userRole))
+    );
+
+    // סינון קורסים
+    const filteredCourses = courses?.filter(c => 
+        (!filters.courseName || c.name.toLowerCase().includes(filters.courseName))
+    ) || [];
+
+    const toggleRole = async (user) => {
+        if (!isAdmin) return;
+        const newRole = user.role === 'teacher' ? 'student' : 'teacher';
+        try {
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.id), { role: newRole });
+            toast(`המשתמש הוגדר כ${newRole === 'teacher' ? 'מורה' : 'תלמיד'}`);
+        } catch (e) { toast("שגיאה בעדכון תפקיד"); }
+    };
+
     const exportToExcel = () => {
         const data = users.map(u => ({
             "שם פרטי": u.firstName,
@@ -17,13 +47,115 @@ export default function AdminPanel({ users, institutions, toast, isAdmin, onEdit
         toast("הקובץ מוכן להורדה!");
     };
 
+    const SearchInput = ({ col, placeholder }) => (
+        <div className="relative mt-2">
+            <span className="absolute right-3 top-2.5 text-slate-300 text-xs">🔍</span>
+            <input 
+                className="w-full p-2 pr-8 bg-slate-50 border rounded-lg text-[10px] font-bold outline-none focus:border-purple-400"
+                placeholder={placeholder}
+                onChange={(e) => handleFilter(col, e.target.value)}
+            />
+        </div>
+    );
+
     return (
         <div className="space-y-12 text-right" dir="rtl">
-            <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] shadow-sm">
-                <h2 className="text-2xl font-black text-emerald-600">ניהול משתמשים</h2>
-                <button onClick={exportToExcel} className="bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-md">📥 ייצוא לאקסל (למורה)</button>
-            </div>
-            {/* ... שאר הטבלאות מהגרסה הקודמת ... */}
+            
+            {/* טבלת ניהול קורסים חדשה */}
+            {isAdmin && (
+                <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+                    <h2 className="text-2xl font-black mb-6 text-purple-600">ניהול קורסים</h2>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-xs font-bold">
+                            <thead>
+                                <tr className="border-b text-slate-400">
+                                    <th className="p-4 text-right w-1/4">שם הקורס <SearchInput col="courseName" placeholder="חפש קורס..." /></th>
+                                    <th className="p-4 text-right">סוג</th>
+                                    <th className="p-4 text-right">תחומי לימוד</th>
+                                    <th className="p-4 text-right">גילאים</th>
+                                    <th className="p-4 text-right">פעולות</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredCourses.map(c => (
+                                    <tr key={c.id} className="border-b hover:bg-slate-50 transition-colors">
+                                        <td className="p-4"><button onClick={() => onEditCourse(c)} className="text-purple-600 hover:underline text-lg font-black">{c.name}</button></td>
+                                        <td className="p-4">{c.type}</td>
+                                        <td className="p-4">{c.fields?.join(', ')}</td>
+                                        <td className="p-4 text-slate-500">כיתות {c.fromGrade} - {c.toGrade}</td>
+                                        <td className="p-4"><button onClick={async () => { if(window.confirm("בטוח שברצונך למחוק קורס זה?")) await deleteDoc(doc(db,'artifacts',appId,'public','data','courses',c.id)) }} className="text-red-400 hover:text-red-600">מחק</button></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            )}
+
+            {/* טבלת ניהול מוסדות */}
+            {isAdmin && (
+                <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+                    <h2 className="text-2xl font-black mb-6 text-blue-600">ניהול מוסדות</h2>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-xs font-bold">
+                            <thead>
+                                <tr className="border-b text-slate-400">
+                                    <th className="p-4 text-right">סמל</th>
+                                    <th className="p-4 text-right w-1/4">שם המוסד <SearchInput col="instName" placeholder="חפש מוסד..." /></th>
+                                    <th className="p-4 text-right">מזהה <SearchInput col="instPrefix" placeholder="חפש מזהה..." /></th>
+                                    <th className="p-4 text-right">תוקף</th>
+                                    <th className="p-4 text-right">פעולות</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredInst.map(inst => (
+                                    <tr key={inst.id} className="border-b hover:bg-slate-50 transition-colors">
+                                        <td className="p-4 text-xl">{inst.symbol || '🏫'}</td>
+                                        <td className="p-4"><button onClick={() => onEditInst(inst)} className="text-blue-600 hover:underline text-lg font-black">{inst.name}</button></td>
+                                        <td className="p-4 uppercase text-slate-400 font-mono">{inst.prefix}</td>
+                                        <td className={`p-4 ${new Date(inst.expiryDate) < new Date() ? 'text-red-500' : 'text-emerald-500'}`}>{inst.expiryDate}</td>
+                                        <td className="p-4"><button onClick={async () => { if(window.confirm("מחק?")) await deleteDoc(doc(db,'artifacts',appId,'public','data','institutions',inst.id)) }} className="text-red-400 hover:text-red-600">מחק</button></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            )}
+
+            {/* טבלת ניהול משתמשים */}
+            <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-black text-emerald-600">{isAdmin ? 'כל המשתמשים' : 'תלמידי המוסד שלי'}</h2>
+                    <button onClick={exportToExcel} className="bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-md hover:bg-emerald-700 transition-colors">📥 ייצוא לאקסל (למורה)</button>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-xs font-bold">
+                        <thead>
+                            <tr className="border-b text-slate-400">
+                                <th className="p-4 text-right w-1/4">שם <SearchInput col="userName" placeholder="חפש שם..." /></th>
+                                <th className="p-4 text-right">שם משתמש</th>
+                                <th className="p-4 text-right">תפקיד <SearchInput col="userRole" placeholder="מורה/תלמיד..." /></th>
+                                <th className="p-4 text-right">פעולות</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredUsers.map(u => (
+                                <tr key={u.id} className="border-b hover:bg-slate-50 transition-colors">
+                                    <td className="p-4"><button onClick={() => onEditUser(u)} className="text-emerald-600 hover:underline text-lg font-black">{u.firstName} {u.lastName}</button></td>
+                                    <td className="p-4 font-mono">{u.username}</td>
+                                    <td className="p-4">
+                                        <button onClick={() => toggleRole(u)} className={`px-3 py-1 rounded-full text-[10px] ${u.role === 'teacher' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                                            {u.role === 'teacher' ? 'מורה' : 'תלמיד'} {isAdmin && '🔄'}
+                                        </button>
+                                    </td>
+                                    <td className="p-4"><button onClick={async () => { if(window.confirm("מחק?")) await deleteDoc(doc(db,'artifacts',appId,'public','data','users',u.id)) }} className="text-red-400 hover:text-red-600">מחק</button></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
     );
 }
