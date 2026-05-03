@@ -17,7 +17,7 @@ import { signInAnonymously } from 'firebase/auth';
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const DEFAULT_MAP_URL = "https://i.postimg.cc/Z5p6mR0H/Gemini-Generated-Image.jpg"; 
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.35"; // עודכן ל-2.35
+export const APP_VERSION = "2.36"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -162,7 +162,10 @@ export default function App() {
 
             {activeModal?.type === 'course' && <CourseModal onClose={() => setActiveModal(null)} toast={setToast} geminiKey={process.env.REACT_APP_GEMINI_API_KEY} existingCourses={localCourses} institutions={localInstitutions} initialData={activeModal.data} />}
             {activeModal?.type === 'student' && <StudentModal onClose={() => setActiveModal(null)} toast={setToast} institutions={localInstitutions} allUsers={localUsers} initialData={activeModal.data} isAdmin={viewMode === 'admin'} />}
-            {activeModal?.type === 'inst' && <InstitutionModal onClose={() => setActiveModal(null)} toast={setToast} initialData={activeModal.data} />}
+            
+            {/* השורה שתוקנה נמצאת ממש כאן למטה - הוספתי את localMaps ו-existingCourses */}
+            {activeModal?.type === 'inst' && <InstitutionModal onClose={() => setActiveModal(null)} toast={setToast} initialData={activeModal.data} localMaps={localMaps} existingCourses={localCourses} />}
+            
             {activeModal?.type === 'map_admin' && <MapModal onClose={() => setActiveModal(null)} toast={setToast} localMaps={localMaps} initialData={activeModal.data} />}
             
             {toast && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-full font-black z-[300] shadow-2xl animate-bounce" style={{ animationDuration: '0.5s' }} ref={(el) => { if(el) setTimeout(() => setToast(''), 5000); }}>{toast}</div>}
