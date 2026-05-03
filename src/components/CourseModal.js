@@ -3,23 +3,27 @@ import { db, appId } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
 export default function CourseModal({ onClose, toast, geminiKey, existingCourses = [], institutions = [], initialData }) {
-    // מאגרי ברירת מחדל לרשימות הנפתחות
-    const SUBJECT_SUGGESTIONS = [
+    
+    // מאגרי ברירת מחדל + שאיבה אוטומטית של ערכים חדשים מהקורסים הקיימים!
+    const SUBJECT_SUGGESTIONS = [...new Set([
         'מתמטיקה', 'אנגלית', 'פיזיקה', 'מדעי המחשב', 'רובוטיקה ובקרה', 'הגנת סייבר', 'ביולוגיה', 'כימיה', 
         'תנ"ך', 'ספרות', 'היסטוריה', 'אזרחות', 'מערכות רפואיות', 'הנדסת תוכנה', 'מדעי הנתונים (AI)', 
-        'תקשורת וחברה', 'מדעי החברה', 'עיצוב וטכנולוגיה', 'מוזיקה', 'תיאטרון', 'חינוך גופני'
-    ];
+        'תקשורת וחברה', 'מדעי החברה', 'עיצוב וטכנולוגיה', 'מוזיקה', 'תיאטרון', 'חינוך גופני',
+        ...existingCourses.flatMap(c => c.fields || []) // מוסיף את כל התחומים שהכנסת בעבר
+    ])];
 
-    const EQUIPMENT_SUGGESTIONS = [
+    const EQUIPMENT_SUGGESTIONS = [...new Set([
         'מיקרוביט (Micro:bit)', 'מדפסת תלת מימד', 'מכונת לייזר', 'ערכת קארטינג', 
-        'ערכת אנרגיה מתחדשת', 'ערכת ארדואינו', 'משקפי VR/AR', 'טאבלטים', 'מחשבים ניידים'
-    ];
+        'ערכת אנרגיה מתחדשת', 'ערכת ארדואינו', 'משקפי VR/AR', 'טאבלטים', 'מחשבים ניידים',
+        ...existingCourses.flatMap(c => c.equipment || []) // מוסיף את כל הציוד שהכנסת בעבר
+    ])];
 
-    const [data, setData] = useState(initialData || {
+    // טעינת נתונים חכמה - ממזג בין ברירות מחדל לבין נתוני קורס קיים (עבור עריכה)
+    const [data, setData] = useState({
         name: '', fields: [], fromGrade: 'א', toGrade: 'יב', equipment: [], type: 'מיומנויות',
-        meetingsCount: 10, // השדה החדש
-        summary: '', goals: '', targets: '', activeLearning: '',
-        prerequisites: [], assignedInstitutions: []
+        meetingsCount: 10, summary: '', goals: '', targets: '', activeLearning: '',
+        prerequisites: [], assignedInstitutions: [],
+        ...initialData 
     });
 
     const [loadingField, setLoadingField] = useState(null);
@@ -75,12 +79,11 @@ export default function CourseModal({ onClose, toast, geminiKey, existingCourses
                 id, 
                 lessons: data.lessons || [] 
             });
-            toast("הקורס נשמר במערכת!");
+            toast(data.id ? "הקורס עודכן בהצלחה!" : "הקורס נשמר במערכת!");
             onClose();
         } catch (e) { toast("שגיאה בשמירה"); }
     };
 
-    // רכיב פנימי לבחירת תגיות קומפקטית
     const CompactTagSelector = ({ label, selected, suggestions, listName, placeholder }) => (
         <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border-2 border-slate-100">
             <label className="text-sm font-black text-slate-700">{label}</label>
@@ -106,7 +109,7 @@ export default function CourseModal({ onClose, toast, geminiKey, existingCourses
                         } 
                     }}
                 />
-                <select className="p-3 bg-white rounded-xl border text-xs font-bold w-40" onChange={(e) => { 
+                <select className="p-3 bg-white rounded-xl border text-xs font-bold w-40 outline-none focus:border-purple-500" onChange={(e) => { 
                     if(e.target.value && !selected.includes(e.target.value)) toggleTag(listName, e.target.value);
                     e.target.value = '';
                 }}>
@@ -122,7 +125,7 @@ export default function CourseModal({ onClose, toast, geminiKey, existingCourses
             <div className="bg-white w-full max-w-5xl rounded-[3rem] shadow-2xl p-10 overflow-y-auto max-h-[95vh] text-right" dir="rtl" onClick={e => e.stopPropagation()}>
                 
                 <div className="flex justify-between items-center mb-8 border-b pb-4">
-                    <h2 className="text-3xl font-black text-purple-600">יצירת קורס מנצח 🚀</h2>
+                    <h2 className="text-3xl font-black text-purple-600">{data.id ? 'עריכת קורס ✏️' : 'יצירת קורס מנצח 🚀'}</h2>
                     <button onClick={onClose} className="text-slate-300 text-4xl hover:text-red-500 transition-colors">&times;</button>
                 </div>
 
