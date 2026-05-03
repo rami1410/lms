@@ -9,22 +9,21 @@ import CourseView from './components/CourseView';
 import StudentModal from './components/StudentModal'; 
 import InstitutionModal from './components/InstitutionModal';
 import MapModal from './components/MapModal';
-import MapView from './components/MapView'; // רכיב המפה המעודכן
+import MapView from './components/MapView';
 import AdminPanel from './components/AdminPanel';
 import { onSnapshot, collection, doc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
-// כתובת המפה הבסיסית - ברירת מחדל
 export const DEFAULT_MAP_URL = "https://i.postimg.cc/Z5p6mR0H/Gemini-Generated-Image.jpg"; 
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.34"; 
+export const APP_VERSION = "2.35"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
     const [lang, setLang] = useState('he');
     const [viewMode, setViewMode] = useState('admin'); 
-    const [localCourses, setLocalCourses] = useState([]);
+    const [localCourses, setLocalCourses] = useState([]); // כאן הם נשמרים
     const [localUsers, setLocalUsers] = useState([]);
     const [localInstitutions, setLocalInstitutions] = useState([]);
     const [localMaps, setLocalMaps] = useState([]);
@@ -38,7 +37,8 @@ export default function App() {
     useEffect(() => {
         if (auth) signInAnonymously(auth).catch(()=>{});
         if (db) {
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'courses'), s => localCourses(s.docs.map(d => ({...d.data(), id: d.id}))));
+            // כאן תוקנה התקלה: setLocalCourses במקום localCourses!
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'courses'), s => setLocalCourses(s.docs.map(d => ({...d.data(), id: d.id}))));
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), s => setLocalUsers(s.docs.map(d => ({...d.data(), id: d.id}))));
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'institutions'), s => setLocalInstitutions(s.docs.map(d => ({...d.data(), id: d.id}))));
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'maps'), s => setLocalMaps(s.docs.map(d => ({...d.data(), id: d.id}))));
@@ -56,7 +56,6 @@ export default function App() {
     const t = (key) => i18n[lang]?.[key] || key;
     const direction = i18n[lang]?.dir || 'rtl';
 
-    // סינונים מורכבים (כפי שביקשת) - לא מחקתי כלום!
     const getVisibleCourses = () => {
         if (viewMode === 'admin' || viewMode === 'teacher') return localCourses;
         const inst = localInstitutions.find(i => i.id === currentUser.institutionId);
@@ -80,7 +79,6 @@ export default function App() {
         } else { setToast('פרטים שגויים'); }
     };
 
-    // בחירת מפה - מוסד > מאגר מפות > ברירת מחדל מערכת
     const currentMapUrl = localInstitutions.find(i => i.id === currentUser?.institutionId)?.mapBackground 
         || localMaps.find(m => m.isDefault)?.url 
         || DEFAULT_MAP_URL;
@@ -104,18 +102,21 @@ export default function App() {
 
             <main className="p-8 max-w-7xl mx-auto">
                 {viewingCourse ? (
-                    <CourseView course={viewingCourse} onBack={() => setViewingCourse(null)} toast={setToast} isAdmin={viewMode === 'admin'} userId={currentUser.id} userProgress={userProgress[viewingCourse.id] || {}} />
+                    <CourseView course={viewingCourse} onBack={() => setViewingCourse(null)} toast={setToast} isAdmin={viewMode === 'admin' || viewMode === 'teacher'} userId={currentUser.id} userProgress={userProgress[viewingCourse.id] || {}} />
                 ) : activeSection === 'admin' ? (
                     <AdminPanel 
                         users={viewMode === 'teacher' ? localUsers.filter(u => u.institutionId === currentUser.institutionId) : localUsers} 
-                        institutions={localInstitutions} toast={setToast} isAdmin={viewMode === 'admin'} 
+                        institutions={localInstitutions} 
+                        courses={localCourses} /* העברת הקורסים לטבלה */
+                        toast={setToast} 
+                        isAdmin={viewMode === 'admin'} 
                         onEditUser={(u) => setActiveModal({type:'student', data: u})}
                         onEditInst={(i) => setActiveModal({type:'inst', data: i})}
+                        onEditCourse={(c) => setActiveModal({type:'course', data: c})} /* עריכת קורס מהטבלה */
                     />
                 ) : (
                     <div className="space-y-8 text-right">
                         <h1 className="text-4xl font-black">{t('my_courses')}</h1>
-                        {/* רכיב המפה המעודכן */}
                         <MapView courses={getVisibleCourses()} direction={direction} mapBackground={currentMapUrl} />
                     </div>
                 )}
