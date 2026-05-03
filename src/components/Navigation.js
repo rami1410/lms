@@ -42,7 +42,9 @@ export default function Navigation({
                         <button onClick={() => setActiveModal({type:'course'})} className="bg-purple-600 text-white px-3 py-2 rounded-xl text-xs font-black shadow-sm hover:scale-105 transition-transform">+ קורס</button>
                         <button onClick={() => setActiveModal({type:'student'})} className="bg-emerald-500 text-white px-3 py-2 rounded-xl text-xs font-black shadow-sm hover:scale-105 transition-transform">+ תלמיד</button>
                         <button onClick={() => setActiveModal({type:'inst'})} className="bg-blue-500 text-white px-3 py-2 rounded-xl text-xs font-black shadow-sm hover:scale-105 transition-transform">+ מוסד</button>
-                        <button onClick={() => setActiveModal({type:'map_admin'})} className="bg-orange-500 text-white px-3 py-2 rounded-xl text-xs font-black shadow-sm hover:scale-105 transition-transform">🗺️ מפות</button>
+                        
+                        {/* תיקון סעיף 1: מפה בלי אייקון, עם פלוס, אחיד לשאר */}
+                        <button onClick={() => setActiveModal({type:'map_admin'})} className="bg-orange-500 text-white px-3 py-2 rounded-xl text-xs font-black shadow-sm hover:scale-105 transition-transform">+ מפות</button>
                     </div>
                 )}
                 
