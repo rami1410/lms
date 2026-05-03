@@ -9,12 +9,13 @@ import CourseView from './components/CourseView';
 import StudentModal from './components/StudentModal'; 
 import InstitutionModal from './components/InstitutionModal';
 import MapModal from './components/MapModal';
-import MapView from './components/MapView';
+import MapView from './components/MapView'; // רכיב המפה המעודכן
 import AdminPanel from './components/AdminPanel';
 import { onSnapshot, collection, doc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
+// כתובת המפה הבסיסית - ברירת מחדל
 export const DEFAULT_MAP_URL = "https://i.postimg.cc/Z5p6mR0H/Gemini-Generated-Image.jpg"; 
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
 export const APP_VERSION = "2.34"; 
@@ -37,7 +38,7 @@ export default function App() {
     useEffect(() => {
         if (auth) signInAnonymously(auth).catch(()=>{});
         if (db) {
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'courses'), s => setLocalCourses(s.docs.map(d => ({...d.data(), id: d.id}))));
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'courses'), s => localCourses(s.docs.map(d => ({...d.data(), id: d.id}))));
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), s => setLocalUsers(s.docs.map(d => ({...d.data(), id: d.id}))));
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'institutions'), s => setLocalInstitutions(s.docs.map(d => ({...d.data(), id: d.id}))));
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'maps'), s => setLocalMaps(s.docs.map(d => ({...d.data(), id: d.id}))));
@@ -55,6 +56,7 @@ export default function App() {
     const t = (key) => i18n[lang]?.[key] || key;
     const direction = i18n[lang]?.dir || 'rtl';
 
+    // סינונים מורכבים (כפי שביקשת) - לא מחקתי כלום!
     const getVisibleCourses = () => {
         if (viewMode === 'admin' || viewMode === 'teacher') return localCourses;
         const inst = localInstitutions.find(i => i.id === currentUser.institutionId);
@@ -62,9 +64,7 @@ export default function App() {
         return localCourses.filter(c => {
             if (c.assignedInstitutions?.includes(inst.id)) return true;
             if (!c.assignedInstitutions || c.assignedInstitutions.length === 0) {
-                const matchGrade = inst.grades?.some(g => g >= c.fromGrade && g <= c.toGrade);
-                const matchField = c.fields?.some(f => inst.fields?.includes(f));
-                return matchGrade || matchField;
+                return c.fields?.some(f => inst.fields?.includes(f)) || (inst.grades?.some(g => g >= c.fromGrade && g <= c.toGrade));
             }
             return false;
         });
@@ -80,6 +80,7 @@ export default function App() {
         } else { setToast('פרטים שגויים'); }
     };
 
+    // בחירת מפה - מוסד > מאגר מפות > ברירת מחדל מערכת
     const currentMapUrl = localInstitutions.find(i => i.id === currentUser?.institutionId)?.mapBackground 
         || localMaps.find(m => m.isDefault)?.url 
         || DEFAULT_MAP_URL;
@@ -112,8 +113,9 @@ export default function App() {
                         onEditInst={(i) => setActiveModal({type:'inst', data: i})}
                     />
                 ) : (
-                    <div className="space-y-8">
+                    <div className="space-y-8 text-right">
                         <h1 className="text-4xl font-black">{t('my_courses')}</h1>
+                        {/* רכיב המפה המעודכן */}
                         <MapView courses={getVisibleCourses()} direction={direction} mapBackground={currentMapUrl} />
                     </div>
                 )}
@@ -122,9 +124,9 @@ export default function App() {
             {activeModal?.type === 'course' && <CourseModal onClose={() => setActiveModal(null)} toast={setToast} geminiKey={process.env.REACT_APP_GEMINI_API_KEY} existingCourses={localCourses} institutions={localInstitutions} initialData={activeModal.data} />}
             {activeModal?.type === 'student' && <StudentModal onClose={() => setActiveModal(null)} toast={setToast} institutions={localInstitutions} allUsers={localUsers} initialData={activeModal.data} isAdmin={viewMode === 'admin'} />}
             {activeModal?.type === 'inst' && <InstitutionModal onClose={() => setActiveModal(null)} toast={setToast} initialData={activeModal.data} />}
-            {activeModal?.type === 'map_admin' && <MapModal onClose={() => setActiveModal(null)} toast={setToast} initialData={activeModal.data} />}
+            {activeModal?.type === 'map_admin' && <MapModal onClose={() => setActiveModal(null)} toast={setToast} localMaps={localMaps} initialData={activeModal.data} />}
             
-            {toast && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-full font-black z-[300] shadow-2xl animate-bounce">{toast}</div>}
+            {toast && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-full font-black z-[300] shadow-2xl animate-bounce" style={{ animationDuration: '0.5s' }} ref={(el) => { if(el) setTimeout(() => setToast(''), 5000); }}>{toast}</div>}
             <div className={`fixed bottom-2 ${direction === 'rtl' ? 'left-2' : 'right-2'} text-[10px] text-slate-300 font-bold`}>V {APP_VERSION}</div>
         </div>
     );
