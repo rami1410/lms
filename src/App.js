@@ -11,20 +11,20 @@ import InstitutionModal from './components/InstitutionModal';
 import MapModal from './components/MapModal';
 import MapView from './components/MapView';
 import AdminPanel from './components/AdminPanel';
+import SmartContentModal from './components/SmartContentModal'; // ייבוא המודאל החדש
 import { onSnapshot, collection, doc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const DEFAULT_MAP_URL = "https://i.postimg.cc/Z5p6mR0H/Gemini-Generated-Image.jpg"; 
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.36"; 
+export const APP_VERSION = "2.37"; // עדכון גרסה
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
     const [lang, setLang] = useState('he');
     const [viewMode, setViewMode] = useState('admin'); 
     
-    // מצב תצוגה חדש - מאפשר לעבור בין המפה לטבלה הרגילה
     const [courseViewType, setCourseViewType] = useState('map'); 
 
     const [localCourses, setLocalCourses] = useState([]); 
@@ -104,6 +104,17 @@ export default function App() {
             />
 
             <main className="p-8 max-w-7xl mx-auto">
+                {/* כפתור הוספת תוכן חכם שמופיע רק לאדמין */}
+                {viewMode === 'admin' && !viewingCourse && (
+                    <div className="mb-6 flex justify-end">
+                        <button 
+                            onClick={() => setActiveModal({type: 'smart_content'})}
+                            className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2">
+                            <span>✨ הוספת תוכן חכם (AI)</span>
+                        </button>
+                    </div>
+                )}
+
                 {viewingCourse ? (
                     <CourseView course={viewingCourse} onBack={() => setViewingCourse(null)} toast={setToast} isAdmin={viewMode === 'admin' || viewMode === 'teacher'} userId={currentUser.id} userProgress={userProgress[viewingCourse.id] || {}} />
                 ) : activeSection === 'admin' ? (
@@ -119,7 +130,6 @@ export default function App() {
                     />
                 ) : (
                     <div className="space-y-6 text-right">
-                        {/* כותרת עם מתג בחירת תצוגה */}
                         <div className="flex justify-between items-center bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
                             <h1 className="text-3xl font-black text-slate-800">{t('my_courses')}</h1>
                             <div className="flex bg-slate-100 p-1 rounded-2xl gap-1">
@@ -128,7 +138,6 @@ export default function App() {
                             </div>
                         </div>
 
-                        {/* הצגת מפה או תצוגה קלאסית לפי בחירת המשתמש */}
                         {courseViewType === 'map' ? (
                             <MapView 
                                 courses={getVisibleCourses()} 
@@ -160,15 +169,23 @@ export default function App() {
                 )}
             </main>
 
+            {/* רשימת המודאלים */}
             {activeModal?.type === 'course' && <CourseModal onClose={() => setActiveModal(null)} toast={setToast} geminiKey={process.env.REACT_APP_GEMINI_API_KEY} existingCourses={localCourses} institutions={localInstitutions} initialData={activeModal.data} />}
             {activeModal?.type === 'student' && <StudentModal onClose={() => setActiveModal(null)} toast={setToast} institutions={localInstitutions} allUsers={localUsers} initialData={activeModal.data} isAdmin={viewMode === 'admin'} />}
-            
-            {/* השורה שתוקנה נמצאת ממש כאן למטה - הוספתי את localMaps ו-existingCourses */}
             {activeModal?.type === 'inst' && <InstitutionModal onClose={() => setActiveModal(null)} toast={setToast} initialData={activeModal.data} localMaps={localMaps} existingCourses={localCourses} />}
-            
             {activeModal?.type === 'map_admin' && <MapModal onClose={() => setActiveModal(null)} toast={setToast} localMaps={localMaps} initialData={activeModal.data} />}
             
-            {toast && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-full font-black z-[300] shadow-2xl animate-bounce" style={{ animationDuration: '0.5s' }} ref={(el) => { if(el) setTimeout(() => setToast(''), 5000); }}>{toast}</div>}
+            {/* המודאל החדש של התוכן החכם */}
+            {activeModal?.type === 'smart_content' && (
+                <SmartContentModal 
+                    onClose={() => setActiveModal(null)} 
+                    toast={setToast} 
+                    existingCourses={localCourses} 
+                    geminiKey={process.env.REACT_APP_GEMINI_API_KEY} 
+                />
+            )}
+            
+            {toast && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-full font-black z-[400] shadow-2xl animate-bounce" style={{ animationDuration: '0.5s' }} ref={(el) => { if(el) setTimeout(() => setToast(''), 5000); }}>{toast}</div>}
             <div className={`fixed bottom-2 ${direction === 'rtl' ? 'left-2' : 'right-2'} text-[10px] text-slate-300 font-bold`}>V {APP_VERSION}</div>
         </div>
     );
