@@ -29,6 +29,7 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
             אנא נתח את התוכן וספק לי המלצות בפורמט JSON בלבד.
             ה-JSON חייב להיות במבנה הבא (ללא תגיות Markdown או טקסט נוסף):
             {
+                "contentTitle": "כותרת קצרה ומושכת עבור התוכן (עד 5 מילים)",
                 "integrationMethod": "הסבר פדגוגי קצר (עד 3 משפטים) כיצד לשלב את התוכן במערכת",
                 "recommendedCourses": [
                     { "id": "מזהה הקורס התואם מתוך הרשימה", "name": "שם הקורס", "reason": "משפט אחד המסביר למה התוכן מתאים לקורס זה" }
@@ -81,23 +82,28 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
         }
 
         try {
-            // הזרקת התוכן לכל קורס שאושר
+            // בדיקה האם מדובר בקישור (URL) או בטקסט רגיל
+            const isLink = inputContent.trim().startsWith('http');
+
+            // הזרקת התוכן לכל קורס שאושר, כשיעור/פריט תוכן רגיל לחלוטין במערך ה-lessons
             for (let courseId of coursesToUpdate) {
                 const courseRef = doc(db, 'artifacts', appId, 'public', 'data', 'courses', courseId);
                 
-                // אנחנו שומרים את ההשראה כמערך חדש בשם smartContent בתוך הקורס
-                const newContent = {
-                    id: "sc-" + Date.now() + Math.floor(Math.random() * 1000),
-                    content: inputContent,
-                    reason: aiResult.recommendedCourses.find(c => c.id === courseId)?.reason || "נוסף עצה חכמה",
-                    addedAt: new Date().toISOString()
+                const newLesson = {
+                    id: "lesson-ai-" + Date.now() + Math.floor(Math.random() * 1000),
+                    title: aiResult.contentTitle || "העשרה פדגוגית",
+                    type: isLink ? 'link' : 'text',
+                    url: isLink ? inputContent.trim() : '',
+                    content: isLink ? '' : inputContent,
+                    description: aiResult.recommendedCourses.find(c => c.id === courseId)?.reason || "",
+                    isSmartContent: true // סימון קטן מאחורי הקלעים כדי שנדע שזה הגיע מה-AI
                 };
 
                 await updateDoc(courseRef, {
-                    smartContent: arrayUnion(newContent)
+                    lessons: arrayUnion(newLesson)
                 });
             }
-            toast(`התוכן התווסף בהצלחה ל-${coursesToUpdate.length} קורסים!`);
+            toast(`התוכן התווסף כשיעור רגיל ל-${coursesToUpdate.length} קורסים!`);
             onClose();
         } catch (e) {
             console.error(e);
@@ -118,7 +124,7 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
                     <div className="space-y-6">
                         <p className="text-slate-600 font-bold">
                             מצאת משהו מעורר השראה ברשת? הדבק כאן קישורים, טקסטים או רעיונות. 
-                            המערכת תסרוק את כל הקורסים ותמליץ היכן ואיך לשלב את זה.
+                            המערכת תסרוק את כל הקורסים ותמליץ היכן ואיך לשלב את זה כשיעור או קישור רגיל.
                         </p>
                         <textarea 
                             className="w-full p-4 bg-slate-50 rounded-2xl border-2 min-h-[150px] outline-none focus:border-purple-500 font-medium"
@@ -135,13 +141,19 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
                     </div>
                 ) : (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+                        
+                        <div className="bg-blue-50 p-6 rounded-3xl border-2 border-blue-100">
+                            <h3 className="font-black text-blue-800 mb-2">📌 כותרת התוכן החדש:</h3>
+                            <p className="text-lg font-bold text-slate-800">{aiResult.contentTitle}</p>
+                        </div>
+
                         <div className="bg-purple-50 p-6 rounded-3xl border-2 border-purple-100">
                             <h3 className="font-black text-purple-800 mb-2">💡 איך לשלב פדגוגית?</h3>
                             <p className="text-sm font-bold text-slate-700">{aiResult.integrationMethod}</p>
                         </div>
 
                         <div className="space-y-4">
-                            <h3 className="font-black text-xl text-slate-800">🎯 קורסים מומלצים לשיבוץ (בחר V או X)</h3>
+                            <h3 className="font-black text-xl text-slate-800">🎯 קורסים לשיבוץ התוכן (בחר V או X)</h3>
                             {aiResult.recommendedCourses && aiResult.recommendedCourses.length > 0 ? (
                                 aiResult.recommendedCourses.map(course => (
                                     <div key={course.id} className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${approvedCourses[course.id] ? 'bg-white border-green-400 shadow-md' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
