@@ -78,6 +78,7 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
                                 </div>
                                 {getLessonIcon(l.type)}
                                 <span className="text-sm font-bold flex-grow truncate">{i+1}. {l.title}</span>
+                                {l.isSmartContent && <span className="text-[10px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full mr-2 font-black">AI</span>}
                             </button>
                         ))}
                     </div>
@@ -104,16 +105,16 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
                                         setLessons(updated);
                                         setActiveLesson({...activeLesson, title: e.target.value});
                                     }} />
-                                    <textarea className="w-full p-4 bg-white rounded-2xl border-2 font-medium h-40 outline-none focus:border-purple-500" placeholder={activeLesson.type === 'html' ? "הדבק כאן קוד HTML..." : "תוכן השיעור..."} value={activeLesson.content} onChange={e => {
+                                    <textarea className="w-full p-4 bg-white rounded-2xl border-2 font-medium h-40 outline-none focus:border-purple-500" placeholder={activeLesson.type === 'html' ? "הדבק כאן קוד HTML..." : "תוכן השיעור..."} value={activeLesson.content || ''} onChange={e => {
                                         const updated = lessons.map(l => l.id === activeLesson.id ? {...l, content: e.target.value} : l);
                                         setLessons(updated);
                                         setActiveLesson({...activeLesson, content: e.target.value});
                                     }} />
                                     {activeLesson.type !== 'text' && activeLesson.type !== 'html' && (
-                                        <input dir="ltr" className="w-full p-4 bg-white rounded-2xl border-2 font-bold outline-none focus:border-purple-500" placeholder="URL קישור להטמעה" value={activeLesson.embedUrl} onChange={e => {
-                                            const updated = lessons.map(l => l.id === activeLesson.id ? {...l, embedUrl: e.target.value} : l);
+                                        <input dir="ltr" className="w-full p-4 bg-white rounded-2xl border-2 font-bold outline-none focus:border-purple-500" placeholder="URL קישור להטמעה" value={activeLesson.embedUrl || activeLesson.url || ''} onChange={e => {
+                                            const updated = lessons.map(l => l.id === activeLesson.id ? {...l, embedUrl: e.target.value, url: e.target.value} : l);
                                             setLessons(updated);
-                                            setActiveLesson({...activeLesson, embedUrl: e.target.value});
+                                            setActiveLesson({...activeLesson, embedUrl: e.target.value, url: e.target.value});
                                         }} />
                                     )}
                                     <button onClick={saveChanges} className="w-full bg-purple-600 text-white py-4 rounded-2xl font-black shadow-lg">שמור שינויים</button>
@@ -129,22 +130,46 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
                                             {userProgress[activeLesson.id] ? 'הושלם ✓' : 'סמן כהושלם'}
                                         </button>
                                     </div>
+                                    
                                     <div className="min-h-[500px]">
+                                        {/* תצוגת ההמלצה הפדגוגית של ה-AI */}
+                                        {activeLesson.isSmartContent && activeLesson.description && (
+                                            <div className="bg-purple-50 p-6 rounded-3xl border-2 border-purple-200 mb-8 shadow-sm flex gap-4 items-start">
+                                                <div className="text-3xl">💡</div>
+                                                <div>
+                                                    <h3 className="font-black text-purple-800 mb-1">המלצה פדגוגית לשילוב התוכן (AI)</h3>
+                                                    <p className="text-slate-700 font-bold">{activeLesson.description}</p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* ניתוב תצוגה חכם לפי סוג התוכן */}
                                         {activeLesson.type === 'html' ? (
                                             <div className="bg-white p-4 rounded-3xl border shadow-sm" dangerouslySetInnerHTML={{ __html: activeLesson.content }} />
-                                        ) : activeLesson.type === 'video' && activeLesson.embedUrl ? (
-                                            <iframe title="v" className="w-full aspect-video rounded-3xl shadow-xl" src={activeLesson.embedUrl.replace('watch?v=', 'embed/')} allowFullScreen />
-                                        ) : activeLesson.embedUrl ? (
-                                            <iframe title="c" className="w-full h-[600px] rounded-3xl border shadow-xl" src={activeLesson.embedUrl} allowFullScreen />
+                                        ) : activeLesson.type === 'video' && (activeLesson.embedUrl || activeLesson.url) ? (
+                                            <iframe title="v" className="w-full aspect-video rounded-3xl shadow-xl border" src={(activeLesson.embedUrl || activeLesson.url).replace('watch?v=', 'embed/')} allowFullScreen />
+                                        ) : activeLesson.type === 'link' ? (
+                                            <div className="bg-slate-50 p-12 rounded-3xl border-2 border-dashed flex flex-col items-center justify-center text-center">
+                                                <span className="text-6xl mb-4">🔗</span>
+                                                <h3 className="text-2xl font-black text-slate-800 mb-6">קישור חיצוני / משאב עזר</h3>
+                                                <a href={activeLesson.url || activeLesson.embedUrl} target="_blank" rel="noreferrer" className="bg-purple-600 text-white px-8 py-4 rounded-full font-black text-lg hover:bg-purple-700 hover:scale-105 transition-all shadow-xl">
+                                                    לחץ כאן לפתיחת הקישור בחלון חדש
+                                                </a>
+                                            </div>
+                                        ) : (activeLesson.embedUrl || activeLesson.url) && activeLesson.type !== 'text' ? (
+                                            <iframe title="c" className="w-full h-[600px] rounded-3xl border shadow-xl" src={activeLesson.embedUrl || activeLesson.url} allowFullScreen />
                                         ) : (
-                                            <div className="prose prose-lg max-w-none text-right bg-white p-8 rounded-3xl border" dangerouslySetInnerHTML={{ __html: activeLesson.content }} />
+                                            <div className="prose prose-lg max-w-none text-right bg-white p-8 rounded-3xl border shadow-sm whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: activeLesson.content || '' }} />
                                         )}
                                     </div>
                                 </>
                             )}
                         </div>
                     ) : (
-                        <div className="h-full flex items-center justify-center text-slate-200 font-black text-4xl">בחר שיעור מהתפריט</div>
+                        <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4">
+                            <span className="text-6xl">👈</span>
+                            <span className="font-black text-3xl">בחר שיעור מהתפריט</span>
+                        </div>
                     )}
                 </div>
             </div>
