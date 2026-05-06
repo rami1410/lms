@@ -26,8 +26,9 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
             הנה רשימת הקורסים הקיימים במערכת שלי:
             ${JSON.stringify(coursesList)}
 
-            אנא נתח את התוכן וספק לי המלצות בפורמט JSON בלבד.
-            ה-JSON חייב להיות במבנה הבא (ללא תגיות Markdown או טקסט נוסף):
+            אנא נתח את התוכן וספק לי המלצות.
+            חובה להחזיר אך ורק JSON תקין (Valid JSON). ללא טקסט מקדים, ללא סימני Markdown, וללא הערות.
+            המבנה חייב להיות בדיוק ככה:
             {
                 "contentTitle": "כותרת קצרה ומושכת עבור התוכן (עד 5 מילים)",
                 "integrationMethod": "הסבר פדגוגי קצר (עד 3 משפטים) כיצד לשלב את התוכן במערכת",
@@ -48,8 +49,15 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
             if (result.error) throw new Error(result.error.message);
 
             let rawText = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            // ניקוי טקסט מג'יבריש או תגיות שמפריעות ל-JSON
-            rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+            
+            // "צייד JSON" - שולף רק את המבנה של הנתונים ומתעלם מפטפוטים של ה-AI מסביב
+            const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                rawText = jsonMatch[0];
+            } else {
+                // למקרה קיצון שאנחנו צריכים ניקוי בסיסי
+                rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+            }
             
             const parsedData = JSON.parse(rawText);
             setAiResult(parsedData);
@@ -64,7 +72,7 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
             setApprovedCourses(initialApproval);
 
         } catch (e) {
-            console.error("AI Error:", e);
+            console.error("AI Error Details:", e);
             toast("הייתה בעיה בפענוח התוכן. נסה לנסח אחרת.");
         } finally {
             setLoading(false);
