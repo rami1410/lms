@@ -31,11 +31,18 @@ export default function SmartCalendarModal({ onClose, toast, geminiKey }) {
 
         setLoading(true);
         try {
+            // שולפים את התאריך של היום כדי לתת ל-AI קונטקסט
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            const currentDate = today.toLocaleDateString('he-IL');
+
             const prompt = `
             אתה עוזר חכם לניהול זמנים. 
+            תאריך של היום הוא: ${currentDate}, שנת ${currentYear}.
             סרוק את הטקסט או התמונה המצורפת, וחלץ את פרטי האירוע במדויק.
-            אם אין שעת סיום, הנח שהאירוע נמשך שעה. אם אין תאריך, הנח שמדובר בהיום.
-            אנא החזר אך ורק JSON תקין במבנה הבא (ללא שום טקסט או תגיות אחרות):
+            אם אין שעת סיום, הנח שהאירוע נמשך שעה. אם אין תאריך, הנח שמדובר באירוע של היום או של התאריך הקרוב ביותר הרלוונטי.
+            
+            חובה להחזיר אך ורק JSON תקין במבנה הבא (ללא שום טקסט, ללא תגיות Markdown, וללא הסברים נוספים):
             {
                 "title": "שם האירוע",
                 "description": "תיאור קצר או פרטים חשובים",
@@ -45,6 +52,8 @@ export default function SmartCalendarModal({ onClose, toast, geminiKey }) {
                 "endDate": "YYYYMMDD",
                 "endTime": "HHMMSS"
             }
+            הקפד ש-startDate ו-endDate יהיו בדיוק 8 ספרות רצופות, ו-startTime ו-endTime יהיו בדיוק 6 ספרות רצופות (למשל 090000 עבור 9 בבוקר).
+            
             טקסט המשתמש: "${inputText}"
             `;
 
@@ -63,8 +72,13 @@ export default function SmartCalendarModal({ onClose, toast, geminiKey }) {
             if (result.error) throw new Error(result.error.message);
 
             let rawText = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            
+            // ניקוי אגרסיבי של פטפוטי AI
+            rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
             const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) rawText = jsonMatch[0];
+            if (jsonMatch) {
+                rawText = jsonMatch[0];
+            }
             
             const parsedData = JSON.parse(rawText);
             setAiResult(parsedData);
@@ -80,15 +94,18 @@ export default function SmartCalendarModal({ onClose, toast, geminiKey }) {
     // בניית קישור שפותח את גוגל יומן עם כל הפרטים
     const generateGoogleCalendarUrl = (eventData) => {
         const { title, description, location, startDate, startTime, endDate, endTime } = eventData;
+        
+        // יצירת מחרוזות תאריך ושעה בפורמט של גוגל יומן
         const start = `${startDate}T${startTime}`;
         const end = `${endDate}T${endTime}`;
         
         const url = new URL('https://calendar.google.com/calendar/render');
         url.searchParams.append('action', 'TEMPLATE');
-        url.searchParams.append('text', title);
+        url.searchParams.append('text', title || 'אירוע חדש');
         url.searchParams.append('dates', `${start}/${end}`);
-        url.searchParams.append('details', description);
-        url.searchParams.append('location', location);
+        
+        if (description) url.searchParams.append('details', description);
+        if (location) url.searchParams.append('location', location);
         
         return url.toString();
     };
@@ -96,7 +113,7 @@ export default function SmartCalendarModal({ onClose, toast, geminiKey }) {
     const handleCreateEvent = () => {
         const url = generateGoogleCalendarUrl(aiResult);
         window.open(url, '_blank');
-        toast("האירוע נשלח ליומן גוגל בהצלחה!");
+        toast("האירוע נפתח ביומן גוגל בהצלחה!");
         onClose();
     };
 
@@ -171,11 +188,15 @@ export default function SmartCalendarModal({ onClose, toast, geminiKey }) {
                                 </div>
                                 <div>
                                     <p className="text-sm text-slate-500 font-bold">תאריך התחלה</p>
-                                    <p className="font-bold text-slate-800">{aiResult.startDate} בשעה {aiResult.startTime.slice(0,2)}:{aiResult.startTime.slice(2,4)}</p>
+                                    <p className="font-bold text-slate-800">
+                                        {aiResult.startDate?.slice(6,8)}/{aiResult.startDate?.slice(4,6)}/{aiResult.startDate?.slice(0,4)} בשעה {aiResult.startTime?.slice(0,2)}:{aiResult.startTime?.slice(2,4)}
+                                    </p>
                                 </div>
                                 <div>
                                     <p className="text-sm text-slate-500 font-bold">תאריך סיום</p>
-                                    <p className="font-bold text-slate-800">{aiResult.endDate} בשעה {aiResult.endTime.slice(0,2)}:{aiResult.endTime.slice(2,4)}</p>
+                                    <p className="font-bold text-slate-800">
+                                        {aiResult.endDate?.slice(6,8)}/{aiResult.endDate?.slice(4,6)}/{aiResult.endDate?.slice(0,4)} בשעה {aiResult.endTime?.slice(0,2)}:{aiResult.endTime?.slice(2,4)}
+                                    </p>
                                 </div>
                             </div>
                             
