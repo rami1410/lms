@@ -11,14 +11,16 @@ import InstitutionModal from './components/InstitutionModal';
 import MapModal from './components/MapModal';
 import MapView from './components/MapView';
 import AdminPanel from './components/AdminPanel';
-import SmartContentModal from './components/SmartContentModal'; // ייבוא המודאל החדש
+import SmartContentModal from './components/SmartContentModal';
+import CompassView from './components/CompassView'; 
+import SmartCalendarModal from './components/SmartCalendarModal'; // ייבוא המודאל החדש של היומן
 import { onSnapshot, collection, doc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const DEFAULT_MAP_URL = "https://i.postimg.cc/Z5p6mR0H/Gemini-Generated-Image.jpg"; 
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.37"; // עדכון גרסה
+export const APP_VERSION = "2.39"; // עדכון גרסה
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -31,7 +33,10 @@ export default function App() {
     const [localUsers, setLocalUsers] = useState([]);
     const [localInstitutions, setLocalInstitutions] = useState([]);
     const [localMaps, setLocalMaps] = useState([]);
+    
     const [userProgress, setUserProgress] = useState({});
+    const [allProgress, setAllProgress] = useState({}); 
+    
     const [activeSection, setActiveSection] = useState('courses');
     const [activeModal, setActiveModal] = useState(null);
     const [viewingCourse, setViewingCourse] = useState(null);
@@ -50,11 +55,24 @@ export default function App() {
 
     useEffect(() => {
         if (db && currentUser?.id) {
-            return onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'progress', currentUser.id), (doc) => {
-                if (doc.exists()) setUserProgress(doc.data());
-            });
+            if (viewMode === 'admin' || viewMode === 'teacher') {
+                return onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'progress'), (snap) => {
+                    const progData = {};
+                    snap.docs.forEach(doc => { progData[doc.id] = doc.data(); });
+                    setAllProgress(progData);
+                    setUserProgress(progData[currentUser.id] || {});
+                });
+            } else {
+                return onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'progress', currentUser.id), (doc) => {
+                    if (doc.exists()) {
+                        const myProg = doc.data();
+                        setUserProgress(myProg);
+                        setAllProgress({ [currentUser.id]: myProg });
+                    }
+                });
+            }
         }
-    }, [currentUser]);
+    }, [currentUser, viewMode]);
 
     const t = (key) => i18n[lang]?.[key] || key;
     const direction = i18n[lang]?.dir || 'rtl';
@@ -104,9 +122,18 @@ export default function App() {
             />
 
             <main className="p-8 max-w-7xl mx-auto">
-                {/* כפתור הוספת תוכן חכם שמופיע רק לאדמין */}
+                {/* אזור הכפתורים החכמים */}
                 {viewMode === 'admin' && !viewingCourse && (
-                    <div className="mb-6 flex justify-end">
+                    <div className="mb-6 flex justify-end gap-4">
+                        <button 
+                            onClick={() => setActiveModal({type: 'smart_calendar'})}
+                            className="bg-white border-2 border-blue-500 text-blue-600 px-6 py-3 rounded-2xl font-black shadow-sm hover:shadow-lg hover:scale-105 transition-all flex items-center gap-2">
+                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/>
+                            </svg>
+                            <span>הוספת אירוע ביומן</span>
+                        </button>
+
                         <button 
                             onClick={() => setActiveModal({type: 'smart_content'})}
                             className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2">
@@ -117,6 +144,14 @@ export default function App() {
 
                 {viewingCourse ? (
                     <CourseView course={viewingCourse} onBack={() => setViewingCourse(null)} toast={setToast} isAdmin={viewMode === 'admin' || viewMode === 'teacher'} userId={currentUser.id} userProgress={userProgress[viewingCourse.id] || {}} />
+                ) : activeSection === 'compass' ? (
+                    <CompassView 
+                        currentUser={currentUser} 
+                        viewMode={viewMode} 
+                        courses={getVisibleCourses()} 
+                        users={localUsers} 
+                        allProgress={allProgress} 
+                    />
                 ) : activeSection === 'admin' ? (
                     <AdminPanel 
                         users={viewMode === 'teacher' ? localUsers.filter(u => u.institutionId === currentUser.institutionId) : localUsers} 
@@ -169,18 +204,25 @@ export default function App() {
                 )}
             </main>
 
-            {/* רשימת המודאלים */}
             {activeModal?.type === 'course' && <CourseModal onClose={() => setActiveModal(null)} toast={setToast} geminiKey={process.env.REACT_APP_GEMINI_API_KEY} existingCourses={localCourses} institutions={localInstitutions} initialData={activeModal.data} />}
             {activeModal?.type === 'student' && <StudentModal onClose={() => setActiveModal(null)} toast={setToast} institutions={localInstitutions} allUsers={localUsers} initialData={activeModal.data} isAdmin={viewMode === 'admin'} />}
             {activeModal?.type === 'inst' && <InstitutionModal onClose={() => setActiveModal(null)} toast={setToast} initialData={activeModal.data} localMaps={localMaps} existingCourses={localCourses} />}
             {activeModal?.type === 'map_admin' && <MapModal onClose={() => setActiveModal(null)} toast={setToast} localMaps={localMaps} initialData={activeModal.data} />}
             
-            {/* המודאל החדש של התוכן החכם */}
             {activeModal?.type === 'smart_content' && (
                 <SmartContentModal 
                     onClose={() => setActiveModal(null)} 
                     toast={setToast} 
                     existingCourses={localCourses} 
+                    geminiKey={process.env.REACT_APP_GEMINI_API_KEY} 
+                />
+            )}
+
+            {/* קריאה למודאל היומן החדש */}
+            {activeModal?.type === 'smart_calendar' && (
+                <SmartCalendarModal 
+                    onClose={() => setActiveModal(null)} 
+                    toast={setToast} 
                     geminiKey={process.env.REACT_APP_GEMINI_API_KEY} 
                 />
             )}
