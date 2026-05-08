@@ -31,7 +31,6 @@ export default function SmartCalendarModal({ onClose, toast, geminiKey }) {
 
         setLoading(true);
         try {
-            // שולפים את התאריך של היום כדי לתת ל-AI קונטקסט
             const today = new Date();
             const currentYear = today.getFullYear();
             const currentDate = today.toLocaleDateString('he-IL');
@@ -61,8 +60,8 @@ export default function SmartCalendarModal({ onClose, toast, geminiKey }) {
                 contents[0].parts.push(imageBase64);
             }
 
-            // קריאה מאובטחת עם נעילה למצב JSON בלבד (JSON Mode)
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${key}`, {
+            // עדכון קריטי: שינוי שם המודל ל-gemini-1.5-flash
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -77,7 +76,6 @@ export default function SmartCalendarModal({ onClose, toast, geminiKey }) {
 
             if (result.error) throw new Error(result.error.message);
 
-            // בגלל מצב ה-JSON, אנחנו מקבלים נתונים נקיים לחלוטין
             const rawText = result.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
             const parsedData = JSON.parse(rawText);
 
@@ -91,9 +89,7 @@ export default function SmartCalendarModal({ onClose, toast, geminiKey }) {
         }
     };
 
-    // בניית קישור שפותח את גוגל יומן עם כל הפרטים (עם מנקה שגיאות אגרסיבי)
     const generateGoogleCalendarUrl = (eventData) => {
-        // פונקציה שמנקה כל דבר שהוא לא מספר, למקרה שה-AI כתב מקפים בטעות
         const clean = (str) => (str ? String(str).replace(/\D/g, "") : "");
         
         const startDate = clean(eventData.startDate).padEnd(8, '0').slice(0, 8);
@@ -101,7 +97,6 @@ export default function SmartCalendarModal({ onClose, toast, geminiKey }) {
         let endDate = clean(eventData.endDate).padEnd(8, '0').slice(0, 8);
         const endTime = clean(eventData.endTime).padEnd(6, '0').slice(0, 6);
         
-        // אם ה-AI לא הצליח להבין תאריך סיום, ניקח את תאריך ההתחלה
         if (!endDate || endDate.length < 8) endDate = startDate;
         
         const start = `${startDate}T${startTime}`;
@@ -125,7 +120,6 @@ export default function SmartCalendarModal({ onClose, toast, geminiKey }) {
         onClose();
     };
 
-    // פונקציה לתצוגה יפה של התאריך למשתמש (בטוחה מפני קריסות)
     const displayDate = (rawDate, rawTime) => {
         if (!rawDate || !rawTime) return 'לא צוין';
         const d = String(rawDate).replace(/\D/g, "");
@@ -227,15 +221,4 @@ export default function SmartCalendarModal({ onClose, toast, geminiKey }) {
                                 חזור לתיקון
                             </button>
                             <button onClick={handleCreateEvent} className="flex-[2] py-4 rounded-[2rem] font-black bg-blue-600 text-white hover:bg-blue-700 shadow-xl active:scale-95 transition-all flex justify-center items-center gap-2">
-                                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/>
-                                </svg>
-                                פתח ביומן גוגל ושמור
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-}
+                                <svg className="w-6
