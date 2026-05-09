@@ -1,240 +1,233 @@
-import React, { useState } from 'react';
-import { db, appId } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import React, { useState, useRef } from 'react';
 
-export default function CourseModal({ onClose, toast, geminiKey, existingCourses = [], institutions = [], initialData }) {
-    
-    // מאגרי ברירת מחדל + שאיבה אוטומטית של ערכים חדשים מהקורסים הקיימים!
-    const SUBJECT_SUGGESTIONS = [...new Set([
-        'מתמטיקה', 'אנגלית', 'פיזיקה', 'מדעי המחשב', 'רובוטיקה ובקרה', 'הגנת סייבר', 'ביולוגיה', 'כימיה', 
-        'תנ"ך', 'ספרות', 'היסטוריה', 'אזרחות', 'מערכות רפואיות', 'הנדסת תוכנה', 'מדעי הנתונים (AI)', 
-        'תקשורת וחברה', 'מדעי החברה', 'עיצוב וטכנולוגיה', 'מוזיקה', 'תיאטרון', 'חינוך גופני',
-        ...existingCourses.flatMap(c => c.fields || []) // מוסיף את כל התחומים שהכנסת בעבר
-    ])];
+export default function SmartCalendarModal({ onClose, toast, geminiKey }) {
+    const [inputText, setInputText] = useState('');
+    const [selectedImage, setSelectedImage] = useState(null);
+    const [imageBase64, setImageBase64] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [aiResult, setAiResult] = useState(null);
+    const fileInputRef = useRef(null);
 
-    const EQUIPMENT_SUGGESTIONS = [...new Set([
-        'מיקרוביט (Micro:bit)', 'מדפסת תלת מימד', 'מכונת לייזר', 'ערכת קארטינג', 
-        'ערכת אנרגיה מתחדשת', 'ערכת ארדואינו', 'משקפי VR/AR', 'טאבלטים', 'מחשבים ניידים',
-        ...existingCourses.flatMap(c => c.equipment || []) // מוסיף את כל הציוד שהכנסת בעבר
-    ])];
+    // המרת התמונה לפורמט ש-Gemini יודע לקרוא
+    const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setSelectedImage(URL.createObjectURL(file));
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64String = reader.result.split(',')[1];
+                setImageBase64({
+                    inlineData: { data: base64String, mimeType: file.type }
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
-    // טעינת נתונים חכמה - ממזג בין ברירות מחדל לבין נתוני קורס קיים (עבור עריכה)
-    const [data, setData] = useState({
-        name: '', fields: [], fromGrade: 'א', toGrade: 'יב', equipment: [], type: 'מיומנויות',
-        meetingsCount: 10, summary: '', goals: '', targets: '', activeLearning: '',
-        prerequisites: [], assignedInstitutions: [],
-        ...initialData 
-    });
-
-    const [loadingField, setLoadingField] = useState(null);
-
-    const handleAI = async (field, label) => {
-        if (!data.name) return toast("יש להזין את שם הקורס תחילה");
+    const analyzeEvent = async () => {
+        if (!inputText.trim() && !imageBase64) return toast("אנא הזן טקסט או העלה תמונה של האירוע.");
         const key = geminiKey ? String(geminiKey).trim() : "";
-        if (!key || key === "undefined") return toast("שגיאה: מפתח AI חסר ב-Vercel");
+        if (!key || key === "undefined") return toast("שגיאה: מפתח AI חסר.");
 
-        setLoadingField(field);
+        setLoading(true);
         try {
-            const prompt = `כתוב ${label} פדגוגי ברמה גבוהה עבור קורס בשם "${data.name}". המטרה היא ניסוח מקצועי המותאם למשרד החינוך. תן רק את התוכן.`;
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            const currentDate = today.toLocaleDateString('he-IL');
+
+            const prompt = `אתה עוזר חכם לחילוץ פרטי אירועים.
+            התאריך היום: ${currentDate}, שנת ${currentYear}.
+            נתח את הטקסט או התמונה וחלץ את פרטי האירוע. 
+            אם לא צוינה שנת האירוע, השתמש בשנת ${currentYear}. 
+            אם לא צוינה שעת סיום, הנח שהאירוע נמשך שעה.
             
-            // שימוש במודל החדש והתקין של גוגל
+            חובה להחזיר את המידע לפי המבנה הבא:
+            {
+                "title": "שם האירוע",
+                "description": "תיאור ופרטים חשובים (השאר ריק אם אין)",
+                "location": "מיקום האירוע (השאר ריק אם אין)",
+                "startDate": "YYYYMMDD",
+                "startTime": "HHMMSS",
+                "endDate": "YYYYMMDD",
+                "endTime": "HHMMSS"
+            }
+            
+            הקפד להחזיר תאריכים ושעות כמספרים רצופים בלבד (ללא מקפים או נקודתיים).
+            טקסט המשתמש: "${inputText}"`;
+
+            const contents = [{ parts: [{ text: prompt }] }];
+            if (imageBase64) {
+                contents[0].parts.push(imageBase64);
+            }
+
             const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                body: JSON.stringify({ 
+                    contents,
+                    generationConfig: {
+                        responseMimeType: "application/json"
+                    }
+                })
             });
-            const result = await res.json();
             
-            if (result.error) {
-                console.error("AI Error:", result.error);
-                throw new Error(result.error.message);
-            }
+            const result = await res.json();
 
-            if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
-                setData(prev => ({ ...prev, [field]: result.candidates[0].content.parts[0].text.trim() }));
-            }
-        } catch (e) { 
-            console.error("AI Fetch catch:", e);
-            toast("תקלת AI: בדוק קונסול או וודא שהמפתח תקין"); 
-        }
-        finally { setLoadingField(null); }
-    };
+            if (result.error) throw new Error(result.error.message);
 
-    const toggleTag = (listName, val) => {
-        const curr = data[listName] || [];
-        if (curr.includes(val)) {
-            setData({ ...data, [listName]: curr.filter(i => i !== val) });
-        } else {
-            setData({ ...data, [listName]: [...curr, val] });
+            const rawText = result.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+            const parsedData = JSON.parse(rawText);
+
+            setAiResult(parsedData);
+
+        } catch (e) {
+            console.error("AI Error Details:", e);
+            toast("הייתה בעיה בפענוח האירוע. ודא שהתמונה או הטקסט ברורים.");
+        } finally {
+            setLoading(false);
         }
     };
 
-    const save = async (e) => {
-        e.preventDefault();
-        if (!data.name) return toast("שם קורס הוא חובה");
-        if (data.fields.length === 0) return toast("חובה לבחור לפחות תחום לימוד אחד כדי שהקורס יופיע במפה!");
+    const generateGoogleCalendarUrl = (eventData) => {
+        const clean = (str) => (str ? String(str).replace(/\D/g, "") : "");
         
-        const id = data.id || "c-" + Date.now();
-        try {
-            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', id), { 
-                ...data, 
-                id, 
-                lessons: data.lessons || [] 
-            });
-            toast(data.id ? "הקורס עודכן בהצלחה!" : "הקורס נשמר במערכת!");
-            onClose();
-        } catch (e) { toast("שגיאה בשמירה"); }
+        const startDate = clean(eventData.startDate).padEnd(8, '0').slice(0, 8);
+        const startTime = clean(eventData.startTime).padEnd(6, '0').slice(0, 6);
+        let endDate = clean(eventData.endDate).padEnd(8, '0').slice(0, 8);
+        const endTime = clean(eventData.endTime).padEnd(6, '0').slice(0, 6);
+        
+        if (!endDate || endDate.length < 8) endDate = startDate;
+        
+        const start = `${startDate}T${startTime}`;
+        const end = `${endDate}T${endTime}`;
+        
+        const url = new URL('https://calendar.google.com/calendar/render');
+        url.searchParams.append('action', 'TEMPLATE');
+        url.searchParams.append('text', eventData.title || 'אירוע חדש');
+        url.searchParams.append('dates', `${start}/${end}`);
+        
+        if (eventData.description) url.searchParams.append('details', eventData.description);
+        if (eventData.location) url.searchParams.append('location', eventData.location);
+        
+        return url.toString();
     };
 
-    const CompactTagSelector = ({ label, selected, suggestions, listName, placeholder }) => (
-        <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border-2 border-slate-100">
-            <label className="text-sm font-black text-slate-700">{label}</label>
-            <div className="flex flex-wrap gap-2 mb-2 min-h-[30px]">
-                {selected.length === 0 && <span className="text-slate-400 text-xs italic">לא נבחרו פריטים...</span>}
-                {selected.map(s => (
-                    <span key={s} className="bg-purple-600 text-white px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-2">
-                        {s} <button type="button" onClick={() => toggleTag(listName, s)} className="text-white hover:text-red-300">×</button>
-                    </span>
-                ))}
-            </div>
-            <div className="flex gap-2">
-                <input 
-                    className="flex-grow p-3 bg-white rounded-xl border outline-none focus:border-purple-500 text-xs font-bold" 
-                    placeholder={placeholder}
-                    onKeyDown={(e) => { 
-                        if(e.key === 'Enter') { 
-                            e.preventDefault(); 
-                            if(e.target.value.trim() && !selected.includes(e.target.value)) {
-                                toggleTag(listName, e.target.value.trim());
-                                e.target.value = '';
-                            }
-                        } 
-                    }}
-                />
-                <select className="p-3 bg-white rounded-xl border text-xs font-bold w-40 outline-none focus:border-purple-500" onChange={(e) => { 
-                    if(e.target.value && !selected.includes(e.target.value)) toggleTag(listName, e.target.value);
-                    e.target.value = '';
-                }}>
-                    <option value="">בחר מהרשימה...</option>
-                    {suggestions.filter(s => !selected.includes(s)).map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-            </div>
-        </div>
-    );
+    const handleCreateEvent = () => {
+        const url = generateGoogleCalendarUrl(aiResult);
+        window.open(url, '_blank');
+        toast("האירוע נפתח ביומן גוגל בהצלחה!");
+        onClose();
+    };
+
+    const displayDate = (rawDate, rawTime) => {
+        if (!rawDate || !rawTime) return 'לא צוין';
+        const d = String(rawDate).replace(/\D/g, "");
+        const t = String(rawTime).replace(/\D/g, "");
+        
+        if (d.length >= 8 && t.length >= 4) {
+            return `${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)} בשעה ${t.slice(0,2)}:${t.slice(2,4)}`;
+        }
+        return `${rawDate} ${rawTime}`;
+    };
 
     return (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-[200]" onClick={onClose}>
-            <div className="bg-white w-full max-w-5xl rounded-[3rem] shadow-2xl p-10 overflow-y-auto max-h-[95vh] text-right" dir="rtl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-[300]" onClick={onClose}>
+            <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl p-10 overflow-y-auto max-h-[95vh] text-right" dir="rtl" onClick={e => e.stopPropagation()}>
                 
-                <div className="flex justify-between items-center mb-8 border-b pb-4">
-                    <h2 className="text-3xl font-black text-purple-600">{data.id ? 'עריכת קורס ✏️' : 'יצירת קורס מנצח 🚀'}</h2>
+                <div className="flex justify-between items-center mb-6 border-b pb-4">
+                    <div className="flex items-center gap-3">
+                        <svg className="w-10 h-10 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/>
+                        </svg>
+                        <h2 className="text-3xl font-black text-slate-800">הוספת אירוע בקסם</h2>
+                    </div>
                     <button onClick={onClose} className="text-slate-300 text-4xl hover:text-red-500 transition-colors">&times;</button>
                 </div>
 
-                <form onSubmit={save} className="space-y-8">
-                    {/* שורה 1: שם וגילאים */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-2">
-                            <label className="text-xs font-black text-slate-500 mr-2">שם הקורס *</label>
-                            <input className="w-full p-4 bg-slate-50 rounded-2xl border-2 font-black text-xl outline-none focus:border-purple-500" 
-                                value={data.name} onChange={e => setData({...data, name: e.target.value})} required/>
-                        </div>
-                        <div className="grid grid-cols-3 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-slate-500">מכיתה</label>
-                                <select className="w-full p-4 bg-slate-50 rounded-2xl border-2 font-bold outline-none" value={data.fromGrade} onChange={e => setData({...data, fromGrade: e.target.value})}>
-                                    {['א','ב','ג','ד','ה','ו','ז','ח','ט','י','יא','יב'].map(g => <option key={g} value={g}>{g}</option>)}
-                                </select>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-slate-500">עד כיתה</label>
-                                <select className="w-full p-4 bg-slate-50 rounded-2xl border-2 font-bold outline-none" value={data.toGrade} onChange={e => setData({...data, toGrade: e.target.value})}>
-                                    {['א','ב','ג','ד','ה','ו','ז','ח','ט','י','יא','יב'].map(g => <option key={g} value={g}>{g}</option>)}
-                                </select>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-slate-500">כמות מפגשים</label>
-                                <input type="number" min="1" max="100" className="w-full p-4 bg-slate-50 rounded-2xl border-2 font-bold outline-none text-center" 
-                                    value={data.meetingsCount} onChange={e => setData({...data, meetingsCount: Number(e.target.value)})} required/>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* שורה 2: תחומים וציוד */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <CompactTagSelector 
-                            label="תחומי לימוד *" 
-                            selected={data.fields} 
-                            suggestions={SUBJECT_SUGGESTIONS} 
-                            listName="fields" 
-                            placeholder="הקלד תחום ולחץ Enter..." 
+                {!aiResult ? (
+                    <div className="space-y-6">
+                        <p className="text-slate-600 font-bold">
+                            הדבק טקסט, קישור, או העלה תמונה של הזמנה/לוז. ה-AI יחלץ את כל הפרטים וייצור עבורך אירוע מסודר ביומן גוגל.
+                        </p>
+                        
+                        <textarea 
+                            className="w-full p-4 bg-slate-50 rounded-2xl border-2 min-h-[100px] outline-none focus:border-blue-500 font-medium"
+                            placeholder="הדבק לכאן את הודעת הוואטסאפ או הטקסט..."
+                            value={inputText}
+                            onChange={e => setInputText(e.target.value)}
                         />
-                        <CompactTagSelector 
-                            label="ציוד נדרש" 
-                            selected={data.equipment} 
-                            suggestions={EQUIPMENT_SUGGESTIONS} 
-                            listName="equipment" 
-                            placeholder="הקלד ציוד ולחץ Enter..." 
-                        />
-                    </div>
 
-                    {/* סוג הקורס */}
-                    <div className="space-y-3">
-                        <label className="text-xs font-black text-slate-500">סוג הקורס</label>
-                        <div className="flex bg-slate-100 p-1 rounded-2xl gap-2">
-                            {['מיומנויות', 'חקר', 'פרויקטים'].map(t => (
-                                <button key={t} type="button" onClick={() => setData({...data, type: t})} 
-                                    className={`flex-1 py-3 rounded-xl font-black transition-all ${data.type === t ? 'bg-white text-purple-600 shadow-md scale-[1.02]' : 'text-slate-400 hover:text-slate-600'}`}>{t}</button>
-                            ))}
+                        <div 
+                            onClick={() => fileInputRef.current.click()}
+                            className="w-full p-8 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50 transition-all cursor-pointer flex flex-col items-center justify-center text-center group"
+                        >
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                className="hidden" 
+                                accept="image/*"
+                                onChange={handleImageChange}
+                            />
+                            {selectedImage ? (
+                                <img src={selectedImage} alt="Preview" className="max-h-40 rounded-xl shadow-md mx-auto" />
+                            ) : (
+                                <>
+                                    <span className="text-4xl mb-2 group-hover:scale-110 transition-transform block">📸</span>
+                                    <span className="font-bold text-slate-500 group-hover:text-blue-600">לחץ להעלאת תמונת הזמנה או צילום מסך</span>
+                                </>
+                            )}
                         </div>
-                    </div>
 
-                    {/* שדות תוכן עם AI */}
-                    <div className="grid grid-cols-1 gap-8">
-                        {[
-                            { id: 'summary', l: 'תמצית הקורס', p: 'תאר בקצרה ובשפה שיווקית-פדגוגית את מהות הקורס, הערך המוסף שהוא מעניק ללומד והקשר לעולם המעשה.' },
-                            { id: 'goals', l: 'מטרות הקורס', p: 'פרט את יעדי העל של תוכנית הלימודים, תוך דגש על פיתוח כישורים קוגניטיביים, רגשיים וחברתיים.' },
-                            { id: 'targets', l: 'יעדי הצלחה מדידים', p: 'הגדר תוצרים אופרטיביים ואבני דרך ברורות שניתן להעריך בסיום התהליך (SMART).' },
-                            { id: 'activeLearning', l: 'אסטרטגיות למידה אקטיבית', p: 'תאר את המתודולוגיות המעודדות מעורבות פעילה: חקר עצמאי, פתרון בעיות, עבודת צוות.' }
-                        ].map(f => (
-                            <div key={f.id} className="space-y-2">
-                                <div className="flex justify-between items-center px-2">
-                                    <label className="text-sm font-black text-slate-600">{f.l}</label>
-                                    <button type="button" onClick={() => handleAI(f.id, f.l)} 
-                                        className="bg-purple-600 text-white text-[10px] font-black px-4 py-1 rounded-full hover:scale-105 transition-transform">
-                                        {loadingField === f.id ? 'מייצר...' : '✨ ייצר עם AI'}
-                                    </button>
+                        <button 
+                            onClick={analyzeEvent} 
+                            disabled={loading || (!inputText && !imageBase64)}
+                            className="w-full bg-blue-600 text-white py-4 rounded-[2rem] font-black text-xl hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 flex justify-center items-center gap-3 shadow-lg">
+                            {loading ? '🤖 מפענח את האירוע...' : '✨ צור אירוע אוטומטית'}
+                        </button>
+                    </div>
+                ) : (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+                        <div className="bg-blue-50 p-6 rounded-3xl border-2 border-blue-100 space-y-4">
+                            <h3 className="font-black text-blue-800 text-2xl mb-4 border-b border-blue-200 pb-2">וידוא פרטים:</h3>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-sm text-slate-500 font-bold">שם האירוע</p>
+                                    <p className="font-black text-lg text-slate-800">{aiResult.title}</p>
                                 </div>
-                                <textarea className="w-full p-4 bg-slate-50 rounded-2xl border-2 min-h-[100px] outline-none focus:border-purple-500 text-sm font-medium" 
-                                    placeholder={f.p} value={data[f.id]} onChange={e => setData({...data, [f.id]: e.target.value})} />
+                                <div>
+                                    <p className="text-sm text-slate-500 font-bold">מיקום</p>
+                                    <p className="font-bold text-slate-800">{aiResult.location || 'לא צוין'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-slate-500 font-bold">תאריך התחלה</p>
+                                    <p className="font-bold text-slate-800">{displayDate(aiResult.startDate, aiResult.startTime)}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-slate-500 font-bold">תאריך סיום</p>
+                                    <p className="font-bold text-slate-800">{displayDate(aiResult.endDate, aiResult.endTime)}</p>
+                                </div>
                             </div>
-                        ))}
-                    </div>
-
-                    {/* דרישות קדם */}
-                    <div className="p-6 bg-slate-50 rounded-[2rem] border-2 border-slate-100">
-                        <h3 className="text-sm font-black text-slate-800 mb-4">קורסים שהם תנאי סף (Prerequisites)</h3>
-                        {existingCourses.length > 0 ? (
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                {existingCourses.filter(c => c.id !== data.id).map(c => (
-                                    <button key={c.id} type="button" onClick={() => toggleTag('prerequisites', c.name)} 
-                                        className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-right ${data.prerequisites?.includes(c.name) ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:border-purple-300'}`}>
-                                        <div className={`w-5 h-5 rounded flex-shrink-0 border-2 flex items-center justify-center ${data.prerequisites?.includes(c.name) ? 'bg-white border-white' : 'border-slate-300'}`}>
-                                            {data.prerequisites?.includes(c.name) && <span className="text-purple-600 font-bold text-xs">✓</span>}
-                                        </div>
-                                        <span className="text-xs font-black truncate">{c.name}</span>
-                                    </button>
-                                ))}
+                            
+                            <div className="pt-2">
+                                <p className="text-sm text-slate-500 font-bold">תיאור</p>
+                                <p className="text-slate-700 font-medium">{aiResult.description || 'ללא תיאור'}</p>
                             </div>
-                        ) : (
-                            <div className="text-center py-4 text-slate-400 text-xs font-bold italic">לא הוגדרו קורסים נוספים במערכת</div>
-                        )}
-                    </div>
+                        </div>
 
-                    <button type="submit" className="w-full bg-slate-900 text-white py-6 rounded-[2.5rem] font-black text-xl hover:bg-purple-600 transition-all shadow-xl active:scale-95">
-                        {data.id ? 'עדכן קורס במאגר' : 'אשר ושמור קורס במערכת'}
-                    </button>
-                </form>
+                        <div className="flex gap-4 pt-4">
+                            <button onClick={() => setAiResult(null)} className="flex-1 py-4 rounded-[2rem] font-black bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+                                חזור לתיקון
+                            </button>
+                            <button onClick={handleCreateEvent} className="flex-[2] py-4 rounded-[2rem] font-black bg-blue-600 text-white hover:bg-blue-700 shadow-xl active:scale-95 transition-all flex justify-center items-center gap-2">
+                                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/>
+                                </svg>
+                                פתח ביומן גוגל ושמור
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
