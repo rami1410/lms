@@ -36,7 +36,8 @@ export default function CourseModal({ onClose, toast, geminiKey, existingCourses
         setLoadingField(field);
         try {
             const prompt = `כתוב ${label} פדגוגי ברמה גבוהה עבור קורס בשם "${data.name}". המטרה היא ניסוח מקצועי המותאם למשרד החינוך. תן רק את התוכן.`;
-            // העדכון כאן: החלפת שם המודל לגרסה החדשה שעובדת
+            
+            // שימוש במודל החדש והתקין של גוגל
             const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
