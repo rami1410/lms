@@ -13,14 +13,15 @@ import MapView from './components/MapView';
 import AdminPanel from './components/AdminPanel';
 import SmartContentModal from './components/SmartContentModal';
 import CompassView from './components/CompassView'; 
-import SmartCalendarModal from './components/SmartCalendarModal'; // ייבוא המודאל החדש של היומן
+import SmartCalendarModal from './components/SmartCalendarModal'; 
+import ImportModal from './components/ImportModal'; // הייבוא החדש שלנו
 import { onSnapshot, collection, doc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const DEFAULT_MAP_URL = "https://i.postimg.cc/Z5p6mR0H/Gemini-Generated-Image.jpg"; 
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.39"; // עדכון גרסה
+export const APP_VERSION = "2.40"; // גרסת הייבוא
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -122,9 +123,15 @@ export default function App() {
             />
 
             <main className="p-8 max-w-7xl mx-auto">
-                {/* אזור הכפתורים החכמים */}
                 {viewMode === 'admin' && !viewingCourse && (
-                    <div className="mb-6 flex justify-end gap-4">
+                    <div className="mb-6 flex flex-wrap justify-end gap-4">
+                        {/* הכפתור החדש לייבוא קורסים! */}
+                        <button 
+                            onClick={() => setActiveModal({type: 'import'})}
+                            className="bg-white border-2 border-green-500 text-green-600 px-6 py-3 rounded-2xl font-black shadow-sm hover:shadow-lg hover:bg-green-50 hover:scale-105 transition-all flex items-center gap-2">
+                            <span>📥 ייבוא מוורדפרס</span>
+                        </button>
+
                         <button 
                             onClick={() => setActiveModal({type: 'smart_calendar'})}
                             className="bg-white border-2 border-blue-500 text-blue-600 px-6 py-3 rounded-2xl font-black shadow-sm hover:shadow-lg hover:scale-105 transition-all flex items-center gap-2">
@@ -218,12 +225,19 @@ export default function App() {
                 />
             )}
 
-            {/* קריאה למודאל היומן החדש */}
             {activeModal?.type === 'smart_calendar' && (
                 <SmartCalendarModal 
                     onClose={() => setActiveModal(null)} 
                     toast={setToast} 
                     geminiKey={process.env.REACT_APP_GEMINI_API_KEY} 
+                />
+            )}
+
+            {/* הפעלת מודאל הייבוא */}
+            {activeModal?.type === 'import' && (
+                <ImportModal 
+                    onClose={() => setActiveModal(null)} 
+                    toast={setToast} 
                 />
             )}
             
