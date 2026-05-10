@@ -38,13 +38,19 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
             }
             `;
 
-            // המודל היציב והזמין ביותר בשרתי גוגל כרגע - gemini-2.0-flash
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+            // המודל העדכני, הזמין והיציב ביותר לעומסים נכון לעכשיו
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${key}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
             });
+            
             const result = await res.json();
+
+            // הגנה חכמה מפני עומסים על השרתים של גוגל
+            if (res.status === 503) {
+                throw new Error("השרתים של גוגל חווים עומס חריג כרגע. אנא המתן מספר שניות ולחץ שוב.");
+            }
 
             if (result.error) throw new Error(result.error.message);
 
@@ -70,7 +76,7 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
 
         } catch (e) {
             console.error("AI Error Details:", e);
-            toast("הייתה בעיה בפענוח התוכן. נסה לנסח אחרת.");
+            toast(e.message || "הייתה בעיה בפענוח התוכן. נסה לנסח אחרת.");
         } finally {
             setLoading(false);
         }
