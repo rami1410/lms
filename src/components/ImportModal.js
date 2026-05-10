@@ -16,10 +16,15 @@ export default function ImportModal({ onClose, toast }) {
         Papa.parse(file, {
             header: true,
             skipEmptyLines: true,
+            // מנקה רווחים שקופים ותווים נסתרים מהכותרות של האקסל (הטריק שפותר הכל)
+            transformHeader: (header) => header.trim(),
             complete: async (results) => {
                 const rows = results.data;
-                // מנסה לסנן רק שורות שהן באמת קורסים (בהנחה ש-Tutor מגדיר אותן ככה בקובץ)
-                const courseRows = rows.filter(row => row['Post Type'] !== 'lesson' && row['Post Type'] !== 'topic');
+                // סינון שיעורים/נושאים במידה ויצאו יחד עם הקורסים
+                const courseRows = rows.filter(row => {
+                    const pt = row['Post Type'] || '';
+                    return pt !== 'lesson' && pt !== 'topic';
+                });
                 
                 setProgress({ current: 0, total: courseRows.length });
                 let successCount = 0;
@@ -27,21 +32,31 @@ export default function ImportModal({ onClose, toast }) {
                 for (let i = 0; i < courseRows.length; i++) {
                     const row = courseRows[i];
                     
-                    const title = row.Title || 'קורס מיובא ללא שם';
-                    let content = row.Content || '';
+                    // שולפים את המידע המדויק לפי הכותרות שסיפקת לי
+                    const title = row['Title'] || row.Title || 'קורס מיובא ללא שם';
+                    const content = row['Content'] || row.Content || '';
+                    const excerpt = row['Excerpt'] || row.Excerpt || '';
+                    const imageUrl = row['Image URL'] || '';
+                    const categories = row['קטגוריות הקורס'] || '';
                     
-                    // ניקוי אלמנטים מיותרים של וורדפרס מהתיאור
-                    let cleanSummary = content.replace(/(<([^>]+)>)/gi, "");
-                    if (cleanSummary.length > 150) cleanSummary = cleanSummary.substring(0, 150) + "...";
+                    // יצירת תקציר: עדיף להשתמש ב-Excerpt אם קיים, אחרת מנקים את ה-Content מ-HTML
+                    let cleanSummary = excerpt.replace(/(<([^>]+)>)/gi, "").trim();
+                    if (!cleanSummary) {
+                        cleanSummary = content.replace(/(<([^>]+)>)/gi, "").trim();
+                        if (cleanSummary.length > 150) cleanSummary = cleanSummary.substring(0, 150) + "...";
+                    }
                     
-                    const id = row.ID ? "wp-" + row.ID : "imported-" + Date.now() + i;
+                    // שימוש ב-ID של וורדפרס כדי לדרוס ולעדכן את הקורסים הריקים מאתמול!
+                    const rowId = row['ID'] || row.ID;
+                    const id = rowId ? "wp-" + rowId : "imported-" + Date.now() + i;
                     
                     const courseData = {
                         id: id,
                         name: title,
                         summary: cleanSummary || "אין תיאור לקורס זה",
                         description: content, 
-                        fields: ['ייבוא מוורדפרס'],
+                        fields: categories ? categories.split(',').map(c => c.trim()) : ['ייבוא מוורדפרס'],
+                        imageUrl: imageUrl, // הכנסנו גם את תמונת הקורס!
                         fromGrade: 'א',
                         toGrade: 'יב',
                         meetingsCount: 10,
@@ -59,7 +74,7 @@ export default function ImportModal({ onClose, toast }) {
                     }
                 }
                 
-                toast(`הייבוא הושלם! ${successCount} קורסים הועלו בהצלחה.`);
+                toast(`הייבוא הושלם! ${successCount} קורסים עודכנו והועלו בהצלחה למערכת.`);
                 setImporting(false);
                 onClose();
             },
@@ -74,13 +89,13 @@ export default function ImportModal({ onClose, toast }) {
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-[400]" onClick={onClose}>
             <div className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl p-10 text-right" dir="rtl" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-6 border-b pb-4">
-                    <h2 className="text-3xl font-black text-blue-600">📥 ייבוא קורסים מוורדפרס</h2>
+                    <h2 className="text-3xl font-black text-green-600">📥 ייבוא ועדכון קורסים</h2>
                     <button onClick={onClose} className="text-slate-300 text-4xl hover:text-red-500 transition-colors">&times;</button>
                 </div>
 
                 <div className="space-y-6">
                     <p className="text-slate-600 font-bold">
-                        בחר את קובץ ה-CSV שהורדת מ-WP All Export. המערכת תסרוק אותו ותייצר עבורך את כל הקורסים אוטומטית.
+                        בחר את קובץ ה-CSV שהורדת. הייבוא יעדכן אוטומטית את הקורסים הריקים וימלא אותם בשמות, בתוכן, בתקצירים ובתמונות.
                     </p>
 
                     <input 
@@ -92,19 +107,19 @@ export default function ImportModal({ onClose, toast }) {
                     />
 
                     {importing ? (
-                        <div className="bg-blue-50 p-6 rounded-2xl border-2 border-blue-200 text-center">
-                            <p className="font-black text-blue-800 text-xl mb-2">מייבא קורסים, נא להמתין...</p>
-                            <p className="text-blue-600 font-bold">{progress.current} מתוך {progress.total} קורסים הועלו!</p>
-                            <div className="w-full bg-blue-200 rounded-full h-4 mt-4 overflow-hidden">
-                                <div className="bg-blue-600 h-full transition-all duration-300" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}></div>
+                        <div className="bg-green-50 p-6 rounded-2xl border-2 border-green-200 text-center">
+                            <p className="font-black text-green-800 text-xl mb-2">מייבא קורסים, נא להמתין...</p>
+                            <p className="text-green-600 font-bold">{progress.current} מתוך {progress.total} קורסים עודכנו!</p>
+                            <div className="w-full bg-green-200 rounded-full h-4 mt-4 overflow-hidden">
+                                <div className="bg-green-600 h-full transition-all duration-300" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}></div>
                             </div>
                         </div>
                     ) : (
                         <button 
                             onClick={handleImport} 
                             disabled={!file}
-                            className="w-full bg-slate-900 text-white py-4 rounded-[2rem] font-black text-xl hover:bg-blue-600 transition-all shadow-xl active:scale-95 disabled:opacity-50">
-                            התחל ייבוא נתונים 🚀
+                            className="w-full bg-slate-900 text-white py-4 rounded-[2rem] font-black text-xl hover:bg-green-600 transition-all shadow-xl active:scale-95 disabled:opacity-50">
+                            התחל עדכון נתונים 🚀
                         </button>
                     )}
                 </div>
