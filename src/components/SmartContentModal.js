@@ -39,7 +39,8 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
             }
             `;
 
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${key}`, {
+            // עדכון שם המודל לגרסה התקינה
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -55,7 +56,6 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
             if (jsonMatch) {
                 rawText = jsonMatch[0];
             } else {
-                // למקרה קיצון שאנחנו צריכים ניקוי בסיסי
                 rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
             }
             
@@ -90,10 +90,8 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
         }
 
         try {
-            // בדיקה האם מדובר בקישור (URL) או בטקסט רגיל
             const isLink = inputContent.trim().startsWith('http');
 
-            // הזרקת התוכן לכל קורס שאושר, כשיעור/פריט תוכן רגיל לחלוטין במערך ה-lessons
             for (let courseId of coursesToUpdate) {
                 const courseRef = doc(db, 'artifacts', appId, 'public', 'data', 'courses', courseId);
                 
@@ -104,7 +102,7 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
                     url: isLink ? inputContent.trim() : '',
                     content: isLink ? '' : inputContent,
                     description: aiResult.recommendedCourses.find(c => c.id === courseId)?.reason || "",
-                    isSmartContent: true // סימון קטן מאחורי הקלעים כדי שנדע שזה הגיע מה-AI
+                    isSmartContent: true 
                 };
 
                 await updateDoc(courseRef, {
@@ -182,7 +180,7 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
 
                         {aiResult.additionalLinks && aiResult.additionalLinks.length > 0 && (
                             <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200">
-                                <h3 className="font-black text-slate-800 mb-2">🔗 רעיונות נוספים להרחבה</h3>
+                                <h3 className="font-black text-slate-800 mb-2">🔗 רעיונות נוספים להרבה</h3>
                                 <ul className="list-disc list-inside text-sm font-bold text-slate-600 space-y-1">
                                     {aiResult.additionalLinks.map((link, idx) => (
                                         <li key={idx}>{link}</li>
