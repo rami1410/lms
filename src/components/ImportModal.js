@@ -27,17 +27,34 @@ export default function ImportModal({ onClose, toast }) {
                 setProgress({ current: 0, total: courseRows.length });
                 let successCount = 0;
                 
-                // פונקציית צייד: מוצאת כל קישור יוטיוב בתוך טקסט
-                const extractYouTubeLinks = (text) => {
-                    if (!text) return [];
-                    // מחפש את כל הווריאציות של לינקים ליוטיוב
-                    const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/gi;
-                    const links = [];
+                // פונקציית צייד: שולפת סרטונים מכל חור אפשרי, גם מתוך קוד נסתר של Tutor LMS
+                const extractVideos = (content, videoField, embedField) => {
+                    const links = new Set();
+                    const combined = (content || '') + " " + (videoField || '') + " " + (embedField || '');
+
+                    // 1. חיפוש לינקים רגילים ו-iframes של יוטיוב
+                    const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|embed)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s<>]{11})/gi;
                     let match;
-                    while ((match = regex.exec(text)) !== null) {
-                        links.push(`https://www.youtube.com/watch?v=${match[1]}`); // פורמט אחיד ונקי
+                    while ((match = ytRegex.exec(combined)) !== null) {
+                        if (match[1]) links.add(`https://www.youtube.com/watch?v=${match[1]}`);
                     }
-                    return links;
+
+                    // 2. חילוץ קוד נסתר מתוך Tutor LMS Settings
+                    const tutorYt = combined.match(/"source_video_id";s:\d+:"([^"]{11})"/gi);
+                    if (tutorYt) {
+                        tutorYt.forEach(m => {
+                            const idMatch = m.match(/"([^"]{11})"/);
+                            if (idMatch && idMatch[1]) links.add(`https://www.youtube.com/watch?v=${idMatch[1]}`);
+                        });
+                    }
+
+                    // 3. תמיכה גם ב-Vimeo למקרה שיש לך
+                    const vimeoRegex = /vimeo\.com\/(?:video\/)?([0-9]+)/gi;
+                    while ((match = vimeoRegex.exec(combined)) !== null) {
+                        if (match[1]) links.add(`https://vimeo.com/${match[1]}`);
+                    }
+
+                    return Array.from(links);
                 };
                 
                 for (let i = 0; i < courseRows.length; i++) {
@@ -52,18 +69,14 @@ export default function ImportModal({ onClose, toast }) {
                     const rawVideoField = row['_video'] || '';
                     const rawEmbedField = row['_learndash_course_grid_video_embed_code'] || '';
 
-                    // מפעילים את צייד היוטיוב על כל השדות הרלוונטיים כדי לא לפספס שום סרטון
-                    const ytLinks = [...new Set([
-                        ...extractYouTubeLinks(rawVideoField),
-                        ...extractYouTubeLinks(rawEmbedField),
-                        ...extractYouTubeLinks(content)
-                    ])];
+                    // מפעילים את צייד הסרטונים שלנו!
+                    const ytLinks = extractVideos(content, rawVideoField, rawEmbedField);
 
-                    // הופכים כל קישור שמצאנו ל"שיעור" במערכת החדשה
+                    // הופכים כל קישור שמצאנו לשיעור בפועל במערכת שלנו
                     const lessons = ytLinks.map((url, idx) => ({
                         id: `lesson-yt-${Date.now()}-${idx}`,
                         title: ytLinks.length === 1 ? 'סרטון הקורס' : `סרטון שיעור ${idx + 1}`,
-                        type: 'link', // מוגדר כקישור כדי שהמערכת תדע לנגן אותו
+                        type: 'link',
                         url: url,
                         content: '',
                         description: 'יובא מהמערכת הישנה'
@@ -87,9 +100,9 @@ export default function ImportModal({ onClose, toast }) {
                         imageUrl: imageUrl, 
                         fromGrade: 'א',
                         toGrade: 'יב',
-                        meetingsCount: lessons.length > 0 ? lessons.length : 10, // מעדכן את מספר המפגשים לפי כמות הסרטונים
+                        meetingsCount: lessons.length > 0 ? lessons.length : 10,
                         type: 'מיומנויות',
-                        lessons: lessons, // הזרקת הסרטונים פנימה!
+                        lessons: lessons, // הזרקת השיעורים שמצאנו פנימה
                         createdAt: new Date().toISOString()
                     };
 
@@ -117,13 +130,13 @@ export default function ImportModal({ onClose, toast }) {
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-[400]" onClick={onClose}>
             <div className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl p-10 text-right" dir="rtl" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-6 border-b pb-4">
-                    <h2 className="text-3xl font-black text-green-600">📥 ייבוא סרטונים ותוכן</h2>
+                    <h2 className="text-3xl font-black text-green-600">📥 ייבוא ועדכון סרטונים</h2>
                     <button onClick={onClose} className="text-slate-300 text-4xl hover:text-red-500 transition-colors">&times;</button>
                 </div>
 
                 <div className="space-y-6">
                     <p className="text-slate-600 font-bold">
-                        בחר את קובץ ה-CSV. המערכת תסרוק אותו כדי לצוד את כל קישורי היוטיוב שהיו בוורדפרס, ותזריק אותם אוטומטית לתוך הקורסים הקיימים שלך.
+                        בחר את הקובץ. המערכת תסרוק אותו כדי לצוד את כל קישורי היוטיוב שהיו חבויים בוורדפרס (כולל בקוד הנסתר), ותעדכן את הקורסים הריקים.
                     </p>
 
                     <input 
