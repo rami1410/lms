@@ -39,8 +39,8 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
             }
             `;
 
-            // עדכון שם המודל לגרסה התקינה
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+            // השדרוג למודל הפעיל והעדכני - gemini-2.5-flash
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -180,7 +180,7 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
 
                         {aiResult.additionalLinks && aiResult.additionalLinks.length > 0 && (
                             <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200">
-                                <h3 className="font-black text-slate-800 mb-2">🔗 רעיונות נוספים להרבה</h3>
+                                <h3 className="font-black text-slate-800 mb-2">🔗 רעיונות נוספים להרחבה</h3>
                                 <ul className="list-disc list-inside text-sm font-bold text-slate-600 space-y-1">
                                     {aiResult.additionalLinks.map((link, idx) => (
                                         <li key={idx}>{link}</li>
