@@ -16,7 +16,6 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
 
         setLoading(true);
         try {
-            // הכנת רשימת הקורסים עבור ה-AI (שם וזיהוי בלבד כדי לא להעמיס)
             const coursesList = existingCourses.map(c => ({ id: c.id, name: c.name, fields: c.fields || [] }));
 
             const prompt = `
@@ -39,8 +38,8 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
             }
             `;
 
-            // התיקון הגדול: עברנו מ-v1beta הישן שקרס, ל-v1 היציב והרשמי של גוגל!
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${key}`, {
+            // הכתובת המדויקת והרשמית של גוגל למודל פלאש
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -51,7 +50,6 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
 
             let rawText = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
             
-            // "צייד JSON" - שולף רק את המבנה של הנתונים ומתעלם מפטפוטים של ה-AI מסביב
             const jsonMatch = rawText.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 rawText = jsonMatch[0];
@@ -62,7 +60,6 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
             const parsedData = JSON.parse(rawText);
             setAiResult(parsedData);
             
-            // הגדרת כל הקורסים המומלצים כמאושרים (V) כברירת מחדל
             const initialApproval = {};
             if (parsedData.recommendedCourses) {
                 parsedData.recommendedCourses.forEach(c => {
