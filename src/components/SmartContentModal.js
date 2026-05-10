@@ -39,8 +39,8 @@ export default function SmartContentModal({ onClose, toast, existingCourses = []
             }
             `;
 
-            // החלפנו ל-gemini-pro בגלל עומס על שרתי ה-flash של גוגל
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`, {
+            // המודל היציב, העדכני והחזק ביותר של גוגל
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${key}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
