@@ -128,7 +128,7 @@ export default function FloatingBot({ geminiKey }) {
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                                placeholder={placeholder} /* כאן קורה קסם ההקלדה! */
+                                placeholder={placeholder}
                                 className="w-full bg-slate-100 text-slate-800 rounded-full pl-12 pr-4 py-3 outline-none focus:ring-2 focus:ring-purple-500 transition-all font-medium text-sm"
                             />
                             <button 
