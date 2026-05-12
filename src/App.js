@@ -14,14 +14,15 @@ import AdminPanel from './components/AdminPanel';
 import SmartContentModal from './components/SmartContentModal';
 import CompassView from './components/CompassView'; 
 import SmartCalendarModal from './components/SmartCalendarModal'; 
-import ImportModal from './components/ImportModal'; // הייבוא החדש שלנו
+import ImportModal from './components/ImportModal';
+import FloatingBot from './components/FloatingBot'; // הייבוא של הבוט הצף
 import { onSnapshot, collection, doc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const DEFAULT_MAP_URL = "https://i.postimg.cc/Z5p6mR0H/Gemini-Generated-Image.jpg"; 
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.40"; // גרסת הייבוא
+export const APP_VERSION = "2.41"; // עדכון גרסה לבוט הצף
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -125,7 +126,6 @@ export default function App() {
             <main className="p-8 max-w-7xl mx-auto">
                 {viewMode === 'admin' && !viewingCourse && (
                     <div className="mb-6 flex flex-wrap justify-end gap-4">
-                        {/* הכפתור החדש לייבוא קורסים! */}
                         <button 
                             onClick={() => setActiveModal({type: 'import'})}
                             className="bg-white border-2 border-green-500 text-green-600 px-6 py-3 rounded-2xl font-black shadow-sm hover:shadow-lg hover:bg-green-50 hover:scale-105 transition-all flex items-center gap-2">
@@ -233,13 +233,15 @@ export default function App() {
                 />
             )}
 
-            {/* הפעלת מודאל הייבוא */}
             {activeModal?.type === 'import' && (
                 <ImportModal 
                     onClose={() => setActiveModal(null)} 
                     toast={setToast} 
                 />
             )}
+
+            {/* הבוט הצף המגניב שלנו */}
+            <FloatingBot geminiKey={process.env.REACT_APP_GEMINI_API_KEY} />
             
             {toast && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-full font-black z-[400] shadow-2xl animate-bounce" style={{ animationDuration: '0.5s' }} ref={(el) => { if(el) setTimeout(() => setToast(''), 5000); }}>{toast}</div>}
             <div className={`fixed bottom-2 ${direction === 'rtl' ? 'left-2' : 'right-2'} text-[10px] text-slate-300 font-bold`}>V {APP_VERSION}</div>
