@@ -14,6 +14,7 @@ export default function ImportModal({ onClose, toast }) {
 
     const [importing, setImporting] = useState(false);
     const [progress, setProgress] = useState({ current: 0, total: 0 });
+    const [fixStatus, setFixStatus] = useState(''); // סטטוס לתיקון סרטונים
 
     useEffect(() => {
         if (!window.Papa) {
@@ -98,7 +99,10 @@ export default function ImportModal({ onClose, toast }) {
                     const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|embed)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s<>]{11})/gi;
                     let match;
                     while ((match = ytRegex.exec(combined)) !== null) {
-                        if (match[1]) links.add(`https://www.youtube.com/watch?v=${match[1]}`);
+                        if (match[1]) {
+                            // --- התיקון הקריטי כאן לייבוא עתידי: שומרים את הלינק כהטמעה (Embed) חוקית ---
+                            links.add(`https://www.youtube.com/embed/${match[1]}`);
+                        }
                     }
                     return Array.from(links);
                 };
@@ -119,7 +123,6 @@ export default function ImportModal({ onClose, toast }) {
 
                     const ytLinks = extractVideos(content, rawVideo);
                     
-                    // --- תוקן: אם יש לינק יוטיוב, הסוג הוא 'video' ולא 'link' ---
                     const type = ytLinks.length > 0 ? 'video' : 'text'; 
                     const url = ytLinks.length > 0 ? ytLinks[0] : '';
                     const cleanContent = content.replace(/(<([^>]+)>)/gi, "").trim();
@@ -229,16 +232,18 @@ export default function ImportModal({ onClose, toast }) {
             setProgress({ current: i + 1, total: finalMatches.length });
         }
         
-        toast(`הייבוא הושלם בהצלחה מטורפת! 🚀 ${successCount} שיעורים חוברו.`);
+        toast(`הייבוא הושלם בהצלחה! 🚀 ${successCount} שיעורים חוברו.`);
         setImporting(false);
         onClose();
     };
 
-    // --- הפונקציה החדשה לתיקון רטרואקטיבי של כל הקורסים שכבר יובאו! ---
+    // --- הפונקציה המתוקנת שהופכת כל קישור בעייתי להטמעה חוקית (Embed) ---
     const handleFixExistingVideos = async () => {
-        if (!window.confirm("פעולה זו תעבור על כל הקורסים במערכת ותהפוך קישורי יוטיוב לסרטונים מוטמעים. להמשיך?")) return;
+        if (!window.confirm("פעולה זו תעבור על כל הקורסים במערכת, ותהפוך את הקישורים השבורים של יוטיוב להטמעות תקינות (Embed) שלא יקפצו החוצה. להמשיך?")) return;
         
         setImporting(true);
+        setFixStatus('מתחיל בסריקת מסד הנתונים...');
+        
         try {
             const coursesRef = collection(db, 'artifacts', appId, 'public', 'data', 'courses');
             const snap = await getDocs(coursesRef);
@@ -246,17 +251,31 @@ export default function ImportModal({ onClose, toast }) {
             let fixedLessonsCount = 0;
 
             for (let i = 0; i < snap.docs.length; i++) {
+                setFixStatus(`סורק קורס ${i + 1} מתוך ${snap.docs.length}...`);
                 const docSnap = snap.docs[i];
                 const data = docSnap.data();
+                
                 if (!data.lessons || data.lessons.length === 0) continue;
 
                 let changed = false;
                 const updatedLessons = data.lessons.map(l => {
-                    // אם השיעור הוגדר כ'link' אבל הוא מכיל יוטיוב או vimeo - נהפוך אותו ל'video'
-                    if (l.type === 'link' && l.url && (l.url.includes('youtube') || l.url.includes('youtu.be') || l.url.includes('vimeo'))) {
-                        changed = true;
-                        fixedLessonsCount++;
-                        return { ...l, type: 'video' };
+                    // אם מדובר בוידאו או קישור ויש לו URL
+                    if ((l.type === 'link' || l.type === 'video') && l.url) {
+                        // Regex לחילוץ ה-ID הספציפי של הסרטון
+                        const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|embed)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s<>]{11})/i;
+                        const match = l.url.match(ytRegex);
+                        
+                        if (match && match[1]) {
+                            // בונה מחדש כתובת embed תקנית
+                            const properEmbedUrl = `https://www.youtube.com/embed/${match[1]}`;
+                            
+                            // מתקן אם הכתובת אינה חוקית או שהסוג לא וידאו
+                            if (l.url !== properEmbedUrl || l.type !== 'video') {
+                                changed = true;
+                                fixedLessonsCount++;
+                                return { ...l, type: 'video', url: properEmbedUrl };
+                            }
+                        }
                     }
                     return l;
                 });
@@ -266,15 +285,17 @@ export default function ImportModal({ onClose, toast }) {
                         lessons: updatedLessons
                     });
                     fixedCoursesCount++;
-                    await delay(300); // השהיה קלה לשרת
+                    await delay(300); // נותן לשרת אוויר
                 }
             }
 
-            toast(`✨ תוקן בהצלחה! ${fixedLessonsCount} סרטונים ב-${fixedCoursesCount} קורסים הופכו מקישור להטמעה פנימית.`);
+            toast(`✨ תוקן בהצלחה! ${fixedLessonsCount} סרטונים ב-${fixedCoursesCount} קורסים תוקנו והופכו להטמעה פנימית תקינה.`);
         } catch (error) {
             console.error("שגיאה בתיקון הסרטונים:", error);
             toast("שגיאה בתיקון הסרטונים. נסה שוב.");
         }
+        
+        setFixStatus('');
         setImporting(false);
     };
 
@@ -303,65 +324,9 @@ export default function ImportModal({ onClose, toast }) {
                                 סרוק קבצים וזהה קורסים 🔍
                             </button>
 
-                            {/* כפתור הקסם החדש! */}
                             <div className="pt-8 mt-8 border-t border-slate-200">
-                                <h3 className="font-bold text-slate-800 mb-2">כבר ייבאתם את הכל?</h3>
+                                <h3 className="font-bold text-slate-800 mb-2">הסרטונים מראים מסגרת אפורה או זורקים החוצה?</h3>
                                 <button onClick={handleFixExistingVideos} className="w-full bg-blue-50 border-2 border-blue-600 text-blue-700 py-3 rounded-2xl font-black text-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95">
-                                    🛠️ תיקון מהיר: הפוך את כל הקישורים לסרטונים מוטמעים באתר
+                                    🛠️ תיקון מהיר: המרת הקישורים להטמעות חוקיות
                                 </button>
-                                <p className="text-xs text-slate-500 mt-2 text-center">לחץ כאן כדי לתקן את בעיית הסרטונים שמוציאים מחוץ לאתר.</p>
-                            </div>
-                        </>
-                    )}
-
-                    {step === 3 && (
-                        <div className="space-y-4">
-                            <h3 className="text-2xl font-black text-slate-800">שלב 3: התאמת קורסים ידנית</h3>
-                            <p className="text-slate-600">סיימנו לסרוק! המערכת זיהתה וחיברה אוטומטית <span className="font-bold text-green-600">{autoMatched.length} קורסים</span> בהצלחה.</p>
-                            
-                            {unmatched.length > 0 && (
-                                <div className="mt-4 border-t pt-4">
-                                    <p className="font-bold text-red-600 mb-4">נותרו {unmatched.length} קורסים מהקובץ שלא מצאנו להם שידוך מדויק. אנא בחר מהרשימה לאיזה קורס לשייך אותם:</p>
-                                    
-                                    {unmatched.map(u => (
-                                        <div key={u.wpCourseId} className="bg-slate-50 p-4 rounded-xl mb-4 border border-slate-200 shadow-sm">
-                                            <div className="flex justify-between items-center mb-3">
-                                                <span className="font-black text-slate-800 break-all">{displaySlug(u.wpSlug)}</span>
-                                                <span className="text-xs bg-slate-200 text-slate-700 px-3 py-1 rounded-full font-bold whitespace-nowrap mr-2">{u.lessons.length} שיעורים</span>
-                                            </div>
-                                            <select 
-                                                value={manualMatches[u.wpCourseId] || ''}
-                                                onChange={(e) => setManualMatches(prev => ({...prev, [u.wpCourseId]: e.target.value}))}
-                                                className="w-full p-3 rounded-lg border-2 border-slate-300 focus:border-purple-500 outline-none text-slate-700 bg-white font-medium"
-                                            >
-                                                <option value="">-- דילוג (לא לייבא) או בחר קורס --</option>
-                                                {dbCourses.map(c => (
-                                                    <option key={c.dbId} value={c.dbId}>{c.name || 'קורס ללא שם'}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            <div className="pt-4 border-t mt-6">
-                                <button onClick={executeImport} className="w-full bg-green-600 text-white py-4 rounded-[2rem] font-black text-xl hover:bg-green-700 transition-all shadow-xl active:scale-95">
-                                    התחל הזרקה למערכת 🚀
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {(importing && (step === 1 || step === 2 || step === 4)) && (
-                        <div className="text-center py-10 flex flex-col items-center justify-center">
-                            <div className="text-6xl mb-4 animate-bounce">⚙️</div>
-                            <p className="font-black text-blue-600 text-2xl animate-pulse">מבצע עבודות תחזוקה במסד הנתונים...</p>
-                            <p className="text-slate-500 mt-2 font-bold">נא לא לסגור את החלון, זה ייקח מספר שניות.</p>
-                            {step === 4 && <p className="text-green-600 font-bold mt-4">{progress.current} מתוך {progress.total} טופלו!</p>}
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-}
+                                <p className="text-xs text-slate-500 mt-2 text-center">יוטיוב חוסמת סרטונים רגילים בתוך האתר. תיקון זה יחלץ את ה-ID שלהם ויהפוך אותם להטמעות (Embed) תקינות שע
