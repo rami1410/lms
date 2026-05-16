@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db, appId } from '../firebase';
 import { doc, updateDoc, arrayUnion, getDoc } from 'firebase/firestore';
-import Papa from 'papaparse';
 
 export default function ImportModal({ onClose, toast }) {
     const [topicsMap, setTopicsMap] = useState(null); 
@@ -9,44 +8,53 @@ export default function ImportModal({ onClose, toast }) {
     const [importing, setImporting] = useState(false);
     const [progress, setProgress] = useState({ current: 0, total: 0 });
 
-    // 1. קריאת קובץ הנושאים - שומר את השמות של הפרקים והשיוך לקורסים!
+    useEffect(() => {
+        // טעינה אוטומטית של קורא ה-CSV ללא צורך בהתקנה ידנית בשרת!
+        if (!window.Papa) {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js';
+            document.head.appendChild(script);
+        }
+    }, []);
+
     const handleTopicsUpload = (e) => {
         const topicsFile = e.target.files[0];
         if (!topicsFile) return;
+        if (!window.Papa) return toast("ספריית הפענוח עדיין נטענת, נסה שוב בעוד שנייה.");
 
-        Papa.parse(topicsFile, {
+        window.Papa.parse(topicsFile, {
             header: true,
             skipEmptyLines: true,
             transformHeader: (header) => header.trim(),
             complete: (results) => {
                 const map = {};
                 results.data.forEach(row => {
-                    const topicId = row['ID'] || row.id;
+                    const topicId = row['ID'] || row.id || row['Id'];
                     const topicTitle = row['Title'] || row.title || 'פרק כללי';
                     const courseId = row['Post Parent'] || row['Parent'] || row.parent;
                     
                     if (topicId && courseId) {
-                        map[topicId.trim()] = {
-                            courseId: courseId.trim(),
-                            title: topicTitle.trim()
+                        map[String(topicId).trim()] = {
+                            courseId: String(courseId).trim(),
+                            title: String(topicTitle).trim()
                         };
                     }
                 });
                 setTopicsMap(map);
-                toast("✅ מבנה הפרקים נטען בהצלחה! השמות נשמרו. אפשר לעבור לשיעורים.");
+                toast("✅ מבנה הפרקים נטען בהצלחה! אפשר לעבור לשלב 2.");
             },
             error: (err) => toast("שגיאה בטעינת קובץ המבנה: " + err.message)
         });
     };
 
-    // 2. קריאת קובץ השיעורים ושמירה על המבנה והשמות אחד לאחד
     const handleLessonsImport = () => {
         if (!file) return toast("אנא בחר את קובץ השיעורים (הסרטונים).");
         if (!topicsMap) return toast("חובה לטעון קודם את קובץ הנושאים בשלב 1!");
+        if (!window.Papa) return toast("המערכת נטענת, המתן שנייה ונסה שוב.");
         
         setImporting(true);
         
-        Papa.parse(file, {
+        window.Papa.parse(file, {
             header: true,
             skipEmptyLines: true,
             transformHeader: (header) => header.trim(),
@@ -69,15 +77,14 @@ export default function ImportModal({ onClose, toast }) {
                 const coursesUpdates = {};
 
                 rows.forEach((row, i) => {
-                    // לוקחים את השם המקורי של השיעור!
-                    const lessonTitle = row['Title'] || row.Title || 'שיעור ללא שם';
-                    const content = row['Content'] || row.Content || '';
+                    const lessonTitle = row['Title'] || row.title || 'שיעור ללא שם';
+                    const content = row['Content'] || row.content || '';
                     const rawVideo = row['_video'] || '';
-                    const topicId = row['Parent'] || row.Parent; // חיבור לפרק
+                    const topicId = row['Parent'] || row.parent || row['Post Parent']; 
 
                     if (!topicId) return;
                     
-                    const topicData = topicsMap[topicId.trim()];
+                    const topicData = topicsMap[String(topicId).trim()];
                     if (!topicData) {
                         notFoundCount++;
                         return;
@@ -88,18 +95,17 @@ export default function ImportModal({ onClose, toast }) {
                     const url = ytLinks.length > 0 ? ytLinks[0] : '';
                     const cleanContent = content.replace(/(<([^>]+)>)/gi, "").trim();
 
-                    // בונים את השיעור בדיוק כפי שהיה בוורדפרס
                     const lesson = {
                         id: `lesson-wp-${row.ID || row.id || Date.now() + i}`,
-                        title: lessonTitle, // השם המקורי
-                        chapter: topicData.title, // השם של הפרק/הנושא המקורי! (שומר על המבניות)
+                        title: lessonTitle, 
+                        chapter: topicData.title, 
                         type: type,
                         url: url,
                         content: type === 'text' ? cleanContent : '',
                         description: 'יובא מוורדפרס'
                     };
 
-                    const courseId = `wp-${topicData.courseId}`;
+                    const courseId = topicData.courseId;
                     if (!coursesUpdates[courseId]) coursesUpdates[courseId] = [];
                     coursesUpdates[courseId].push(lesson);
                 });
@@ -108,12 +114,19 @@ export default function ImportModal({ onClose, toast }) {
                 setProgress({ current: 0, total: courseIds.length });
                 
                 for (let i = 0; i < courseIds.length; i++) {
-                    const courseId = courseIds[i];
-                    const lessonsToAdd = coursesUpdates[courseId];
-                    const courseRef = doc(db, 'artifacts', appId, 'public', 'data', 'courses', courseId);
+                    const rawCourseId = courseIds[i];
+                    const lessonsToAdd = coursesUpdates[rawCourseId];
+                    
+                    // בדיקה כפולה - מוודא מציאת קורס גם עם קידומת wp- וגם בלי
+                    let courseRef = doc(db, 'artifacts', appId, 'public', 'data', 'courses', `wp-${rawCourseId}`);
+                    let courseSnap = await getDoc(courseRef);
+                    
+                    if (!courseSnap.exists()) {
+                        courseRef = doc(db, 'artifacts', appId, 'public', 'data', 'courses', rawCourseId);
+                        courseSnap = await getDoc(courseRef);
+                    }
                     
                     try {
-                        const courseSnap = await getDoc(courseRef);
                         if (courseSnap.exists()) {
                             const existingLessons = courseSnap.data().lessons || [];
                             const existingIds = existingLessons.map(l => l.id);
@@ -154,7 +167,6 @@ export default function ImportModal({ onClose, toast }) {
                 </div>
 
                 <div className="space-y-6">
-                    {/* שלב 1 */}
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
                         <label className="block font-black text-slate-700 mb-2">📍 שלב 1: טען את קובץ ה"נושאים" (הפרקים)</label>
                         <p className="text-xs text-slate-500 mb-3">קובץ זה שומר על שמות הפרקים שסידרת במערכת הישנה.</p>
@@ -167,7 +179,6 @@ export default function ImportModal({ onClose, toast }) {
                         />
                     </div>
 
-                    {/* שלב 2 */}
                     <div className={`bg-slate-50 p-4 rounded-2xl border border-slate-200 ${!topicsMap ? 'opacity-50 pointer-events-none' : ''}`}>
                         <label className="block font-black text-slate-700 mb-2">🎬 שלב 2: בחר את קובץ ה"שיעורים"</label>
                         <p className="text-xs text-slate-500 mb-3">כאן נמצאים הסרטונים ושמות השיעורים הספציפיים.</p>
@@ -183,7 +194,7 @@ export default function ImportModal({ onClose, toast }) {
                     {importing ? (
                         <div className="bg-green-50 p-6 rounded-2xl border-2 border-green-200 text-center">
                             <p className="font-black text-green-800 text-xl mb-2">מעתיק את מבנה הקורסים 1:1...</p>
-                            <p className="text-green-600 font-bold">{progress.current} מתוך {progress.total} קורסים עודכנו!</p>
+                            <p className="text-green-600 font-bold">{progress.current} מתוך {progress.total} קורסים נבדקו!</p>
                             <div className="w-full bg-green-200 rounded-full h-4 mt-4 overflow-hidden">
                                 <div className="bg-green-600 h-full transition-all duration-300" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}></div>
                             </div>
