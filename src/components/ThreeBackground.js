@@ -4,6 +4,10 @@ export default function ThreeBackground() {
     const canvasContainerRef = useRef(null);
 
     useEffect(() => {
+        // 1. חסימה לניידים: אם המסך קטן מ-768 פיקסלים (סלולר), אל תטען תלת-מימד בכלל!
+        // זה חוסך סוללה ומשאיר את העיצוב נקי וקריא במסכים קטנים.
+        if (window.innerWidth < 768) return;
+
         // טעינת ספריית התלת-מימד
         const loadThreeJS = async () => {
             if (!document.querySelector(`script[src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"]`)) {
@@ -29,64 +33,62 @@ export default function ThreeBackground() {
             renderer.setSize(window.innerWidth, window.innerHeight);
             canvasContainerRef.current.appendChild(renderer.domElement);
 
-            const light = new THREE.PointLight(0xffffff, 1.8, 100); // הגברת תאורה
+            const light = new THREE.PointLight(0xffffff, 1.8, 100);
             light.position.set(5, 5, 5);
             scene.add(light);
-            scene.add(new THREE.AmbientLight(0xffffff, 0.6)); // הגברת אור סביבתי
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
-            // הצורות הגיאומטריות
             const geometries = [
-                new THREE.TorusKnotGeometry(1.6, 0.45, 200, 32), // Hero Knot (0)
-                new THREE.TorusKnotGeometry(0.8, 0.28, 100, 16),// Equipment (1)
-                new THREE.IcosahedronGeometry(0.9),             // Training (2)
-                new THREE.BoxGeometry(1.3, 1.3, 1.3),           // Spaces (3)
-                new THREE.DodecahedronGeometry(0.95),           // VR (4)
-                new THREE.SphereGeometry(0.9, 32, 32),          // Global (5)
-                new THREE.OctahedronGeometry(1.0)               // Peak Days (6)
+                new THREE.TorusKnotGeometry(1.6, 0.45, 200, 32), // Hero (ללא שינוי)
+                new THREE.TorusKnotGeometry(0.8, 0.28, 100, 16), // קטגוריה 1
+                new THREE.IcosahedronGeometry(0.9),              // קטגוריה 2
+                new THREE.BoxGeometry(1.3, 1.3, 1.3),            // קטגוריה 3
+                new THREE.DodecahedronGeometry(0.95),            // קטגוריה 4
+                new THREE.SphereGeometry(0.9, 32, 32),           // קטגוריה 5
+                new THREE.OctahedronGeometry(1.0)                // קטגוריה 6
             ];
 
-            // צבעים מודגשים יותר לקטגוריות
             const colors = [
-                0x46bad1, // Hero (Teal)
-                0x00acc1, // Equip (Teal כהה יותר)
-                0x689f38, // Training (Green כהה יותר)
-                0xe65100, // Spaces (Orange כהה)
-                0x00acc1, // VR
-                0xcf9c00, // Global (Gold - נראה על לבן)
-                0xd32f2f  // Red
+                0x46bad1, // Hero
+                0x00acc1, 
+                0x689f38, 
+                0xe65100, 
+                0x00acc1, 
+                0xcf9c00, 
+                0xd32f2f  
             ];
 
             geometries.forEach((geo, i) => {
-                // הגדרות חומר שונות לצורה הראשית ולקטגוריות!
                 let matProps;
                 if (i === 0) {
-                    // --- תיקון לצורה הראשית (הירו) ---
-                    // הפכנו אותה לשקופה מאוד, עם "רשת" עדינה, כמעט בלתי נראית. 
-                    // כדי שלא תתנגש עם הטקסט השחור כפי שקרה בתמונה שצירפת.
+                    // ההירו נשאר תקין - שקוף כמעט לגמרי כדי לא להפריע לטקסט העליון
                     matProps = { 
                         color: colors[i], 
                         shininess: 300, 
                         transparent: true, 
-                        opacity: 0.05, // שקופה לחלוטין!
-                        wireframe: true // משאירים את הרשת העדינה
+                        opacity: 0.05, 
+                        wireframe: true 
                     };
                 } else {
-                    // --- תיקון ל-6 הקטגוריות! ---
-                    // אנחנו הופכים אותן לצורות מלאות (Mesh), תלת מימדיות, יפות, 
-                    // בעלות צבע חזק ושקיפות חלקית כדי שייראו מעולה בזמן הסיבוב!
+                    // 6 הקטגוריות הפנימיות
                     matProps = { 
                         color: colors[i], 
                         shininess: 150, 
                         transparent: true, 
-                        opacity: 0.9, // נוכחות חזקה!
-                        wireframe: false // צורה מלאה ותלת מימדית
+                        opacity: 0.9, 
+                        wireframe: false 
                     };
                 }
 
                 const mat = new THREE.MeshPhongMaterial(matProps);
                 const mesh = new THREE.Mesh(geo, mat);
+                
                 mesh.position.y = i === 0 ? 0 : -i * 10;
-                mesh.position.x = i === 0 ? 0 : ((i % 2 === 1) ? 4.2 : -4.2); // הרחקה קלה מהטקסט
+                
+                // התיקון הגדול: כולם ב-x=0 (אמצע המסך במדויק). 
+                // ככה הם ירחפו ברווח הענק שבין בלוק הטקסט לבלוק התמונה, ולא יבלעו מאחורי הלבן!
+                mesh.position.x = 0; 
+                
                 scene.add(mesh);
                 objects.push(mesh);
             });
@@ -100,7 +102,6 @@ export default function ThreeBackground() {
                         obj.rotation.x += 0.007;
                         obj.rotation.y += 0.012;
                     } else {
-                        // צורה ראשית מסתובבת לאט יותר
                         obj.rotation.x += 0.001;
                         obj.rotation.y += 0.002;
                     }
@@ -109,7 +110,6 @@ export default function ThreeBackground() {
             };
             animate();
 
-            // נוסחת גלילה מעודכנת - הצורות גלויות יותר זמן!
             const handleScroll = () => {
                 const scrollY = window.scrollY;
                 const vh = window.innerHeight;
@@ -125,10 +125,13 @@ export default function ThreeBackground() {
                     const centerOffset = (vh / 2 - rect.top) / (vh / 2); 
 
                     if (rect.top < vh && rect.bottom > 0) {
-                        // שיניתי את הנוסחה: הן נשארות גלויות לאורך זמן רב
-                        // רק כשהן ממש יוצאות מהמסך (centerOffset > 1) הן נעלמות
                         obj.material.opacity = i === 0 ? 0.05 : Math.max(0, 0.9 - (Math.abs(centerOffset) * 0.2));
-                        const scaleFactor = 1 + (1 - Math.abs(centerOffset)) * 0.3;
+                        
+                        // הגדלנו מעט את הצורות בקטגוריות כדי שהן באמת ימלאו את הרווח שבאמצע
+                        const scaleFactor = i === 0 
+                            ? (1 + (1 - Math.abs(centerOffset)) * 0.3) 
+                            : (1.5 + (1 - Math.abs(centerOffset)) * 0.5); // בולט יותר!
+                            
                         obj.scale.set(scaleFactor, scaleFactor, scaleFactor);
                         obj.position.z = (1 - Math.abs(centerOffset)) * 2;
                     } else {
@@ -139,10 +142,16 @@ export default function ThreeBackground() {
             window.addEventListener('scroll', handleScroll);
             
             window.addEventListener('resize', () => {
-                if (camera && renderer) {
-                    camera.aspect = window.innerWidth / window.innerHeight;
-                    camera.updateProjectionMatrix();
-                    renderer.setSize(window.innerWidth, window.innerHeight);
+                // אם פתאום הקטינו את החלון לנייד, לא נרנדר כדי לא להכביד
+                if (window.innerWidth < 768 && canvasContainerRef.current) {
+                    canvasContainerRef.current.style.display = 'none';
+                } else if (canvasContainerRef.current) {
+                    canvasContainerRef.current.style.display = 'block';
+                    if (camera && renderer) {
+                        camera.aspect = window.innerWidth / window.innerHeight;
+                        camera.updateProjectionMatrix();
+                        renderer.setSize(window.innerWidth, window.innerHeight);
+                    }
                 }
             });
         }
@@ -155,11 +164,13 @@ export default function ThreeBackground() {
             window.removeEventListener('resize', () => {});
             if (renderer && canvasContainerRef.current) {
                 // eslint-disable-next-line react-hooks/exhaustive-deps
-                canvasContainerRef.current.removeChild(renderer.domElement);
+                if(canvasContainerRef.current.contains(renderer.domElement)) {
+                    canvasContainerRef.current.removeChild(renderer.domElement);
+                }
                 renderer.dispose();
             }
         };
     }, []);
 
-    return <div id="canvas-container" ref={canvasContainerRef} className="fixed top-0 left-0 w-full h-screen z-10 pointer-events-none"></div>;
+    return <div id="canvas-container" ref={canvasContainerRef} className="fixed top-0 left-0 w-full h-screen z-10 pointer-events-none hidden md:block"></div>;
 }
