@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, appId } from '../firebase';
-import { doc, updateDoc, arrayUnion, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, getDocs, collection } from 'firebase/firestore';
 
 export default function ImportModal({ onClose, toast }) {
     const [topicsMap, setTopicsMap] = useState(null); 
@@ -25,7 +25,7 @@ export default function ImportModal({ onClose, toast }) {
         window.Papa.parse(topicsFile, {
             header: true,
             skipEmptyLines: true,
-            transformHeader: (header) => header.trim(),
+            transformHeader: (header) => header.trim().replace(/^[\u200B\u200C\uFEFF]+|[\u200B\u200C\uFEFF]+$/g, ''),
             complete: (results) => {
                 const map = {};
                 results.data.forEach(row => {
@@ -41,27 +41,40 @@ export default function ImportModal({ onClose, toast }) {
                     }
                 });
                 setTopicsMap(map);
-                toast("✅ מבנה הפרקים נטען בהצלחה! אפשר לעבור לשלב 2.");
+                toast(`✅ נטענו ${Object.keys(map).length} פרקים למערכת! אפשר לעבור לשלב 2.`);
             },
             error: (err) => toast("שגיאה בטעינת קובץ המבנה: " + err.message)
         });
     };
 
-    const handleLessonsImport = () => {
+    const handleLessonsImport = async () => {
         if (!file) return toast("אנא בחר את קובץ השיעורים (הסרטונים).");
         if (!topicsMap) return toast("חובה לטעון קודם את קובץ הנושאים בשלב 1!");
         if (!window.Papa) return toast("המערכת נטענת, המתן שנייה ונסה שוב.");
         
         setImporting(true);
+
+        // שלב מקדים חדש וקריטי: שואבים את כל הקורסים הקיימים למאגר כדי למצוא להם שידוך מדוייק
+        let existingDbCourses = [];
+        try {
+            const coursesRef = collection(db, 'artifacts', appId, 'public', 'data', 'courses');
+            const snap = await getDocs(coursesRef);
+            existingDbCourses = snap.docs.map(d => ({ dbId: d.id, ...d.data() }));
+        } catch (err) {
+            console.error("שגיאה בשליפת קורסים:", err);
+            toast("שגיאת התחברות למסד הנתונים.");
+            setImporting(false);
+            return;
+        }
         
         window.Papa.parse(file, {
             header: true,
             skipEmptyLines: true,
-            transformHeader: (header) => header.trim(),
+            transformHeader: (header) => header.trim().replace(/^[\u200B\u200C\uFEFF]+|[\u200B\u200C\uFEFF]+$/g, ''),
             complete: async (results) => {
                 const rows = results.data;
                 let successCount = 0;
-                let notFoundCount = 0;
+                let coursesUpdatedCount = 0;
                 
                 const extractVideos = (content, videoField) => {
                     const links = new Set();
@@ -76,6 +89,7 @@ export default function ImportModal({ onClose, toast }) {
 
                 const coursesUpdates = {};
 
+                // בניית כל השיעורים בזיכרון
                 rows.forEach((row, i) => {
                     const lessonTitle = row['Title'] || row.title || 'שיעור ללא שם';
                     const content = row['Content'] || row.content || '';
@@ -85,10 +99,7 @@ export default function ImportModal({ onClose, toast }) {
                     if (!topicId) return;
                     
                     const topicData = topicsMap[String(topicId).trim()];
-                    if (!topicData) {
-                        notFoundCount++;
-                        return;
-                    }
+                    if (!topicData) return;
 
                     const ytLinks = extractVideos(content, rawVideo);
                     const type = ytLinks.length > 0 ? 'link' : 'text';
@@ -113,22 +124,27 @@ export default function ImportModal({ onClose, toast }) {
                 const courseIds = Object.keys(coursesUpdates);
                 setProgress({ current: 0, total: courseIds.length });
                 
+                // שלב ההזרקה החכם!
                 for (let i = 0; i < courseIds.length; i++) {
-                    const rawCourseId = courseIds[i];
+                    const rawCourseId = String(courseIds[i]).trim();
+                    const cleanNumericId = rawCourseId.replace(/\D/g, ''); // מחלץ נטו את המספר
                     const lessonsToAdd = coursesUpdates[rawCourseId];
                     
-                    // בדיקה כפולה - מוודא מציאת קורס גם עם קידומת wp- וגם בלי
-                    let courseRef = doc(db, 'artifacts', appId, 'public', 'data', 'courses', `wp-${rawCourseId}`);
-                    let courseSnap = await getDoc(courseRef);
+                    // מנגנון הציד: מחפש את הקורס מכל כיוון אפשרי במסד הנתונים
+                    const matchedCourse = existingDbCourses.find(c => {
+                        const dbIdStr = String(c.dbId);
+                        return dbIdStr === rawCourseId || 
+                               dbIdStr === `wp-${rawCourseId}` || 
+                               dbIdStr === `course-${rawCourseId}` || 
+                               (cleanNumericId.length >= 3 && dbIdStr.includes(cleanNumericId)) || 
+                               String(c.id) === rawCourseId || 
+                               String(c.wpId) === rawCourseId;
+                    });
                     
-                    if (!courseSnap.exists()) {
-                        courseRef = doc(db, 'artifacts', appId, 'public', 'data', 'courses', rawCourseId);
-                        courseSnap = await getDoc(courseRef);
-                    }
-                    
-                    try {
-                        if (courseSnap.exists()) {
-                            const existingLessons = courseSnap.data().lessons || [];
+                    if (matchedCourse) {
+                        try {
+                            const courseRef = doc(db, 'artifacts', appId, 'public', 'data', 'courses', matchedCourse.dbId);
+                            const existingLessons = matchedCourse.lessons || [];
                             const existingIds = existingLessons.map(l => l.id);
                             
                             const newLessons = lessonsToAdd.filter(l => !existingIds.includes(l.id));
@@ -139,15 +155,22 @@ export default function ImportModal({ onClose, toast }) {
                                     meetingsCount: existingLessons.length + newLessons.length
                                 });
                                 successCount += newLessons.length;
+                                coursesUpdatedCount++;
                             }
+                        } catch (err) {
+                            console.error("שגיאה בעדכון קורס:", err);
                         }
-                    } catch (err) {
-                        console.error("שגיאה בעדכון קורס:", err);
+                    } else {
+                        console.warn(`לא נמצא שידוך במערכת לקורס שה-ID שלו מוורדפרס הוא: ${rawCourseId}`);
                     }
                     setProgress({ current: i + 1, total: courseIds.length });
                 }
                 
-                toast(`הייבוא הושלם! ${successCount} שיעורים חוברו למבנה הקורסים המקורי שלך.`);
+                if (successCount > 0) {
+                    toast(`הייבוא הושלם בהצלחה מטורפת! 🚀 ${successCount} שיעורים חוברו ל-${coursesUpdatedCount} קורסים במערכת.`);
+                } else {
+                    toast(`הסתיים, אך לא חוברו שיעורים. ודא שהקורסים הראשיים אכן יובאו למערכת ויש להם את אותו ID.`);
+                }
                 setImporting(false);
                 onClose();
             },
@@ -193,8 +216,8 @@ export default function ImportModal({ onClose, toast }) {
 
                     {importing ? (
                         <div className="bg-green-50 p-6 rounded-2xl border-2 border-green-200 text-center">
-                            <p className="font-black text-green-800 text-xl mb-2">מעתיק את מבנה הקורסים 1:1...</p>
-                            <p className="text-green-600 font-bold">{progress.current} מתוך {progress.total} קורסים נבדקו!</p>
+                            <p className="font-black text-green-800 text-xl mb-2">מחפש קורסים ומזריק שיעורים...</p>
+                            <p className="text-green-600 font-bold">{progress.current} מתוך {progress.total} קורסים נסרקו!</p>
                             <div className="w-full bg-green-200 rounded-full h-4 mt-4 overflow-hidden">
                                 <div className="bg-green-600 h-full transition-all duration-300" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}></div>
                             </div>
@@ -204,7 +227,7 @@ export default function ImportModal({ onClose, toast }) {
                             onClick={handleLessonsImport} 
                             disabled={!file || !topicsMap}
                             className="w-full bg-slate-900 text-white py-4 rounded-[2rem] font-black text-xl hover:bg-green-600 transition-all shadow-xl active:scale-95 disabled:opacity-50">
-                            התחל העתקה מדויקת 🚀
+                            התחל העתקה חכמה 🚀
                         </button>
                     )}
                 </div>
