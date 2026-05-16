@@ -29,33 +29,64 @@ export default function ThreeBackground() {
             renderer.setSize(window.innerWidth, window.innerHeight);
             canvasContainerRef.current.appendChild(renderer.domElement);
 
-            const light = new THREE.PointLight(0xffffff, 1.5, 100);
+            const light = new THREE.PointLight(0xffffff, 1.8, 100); // הגברת תאורה
             light.position.set(5, 5, 5);
             scene.add(light);
-            scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6)); // הגברת אור סביבתי
 
+            // הצורות הגיאומטריות
             const geometries = [
-                new THREE.TorusKnotGeometry(1.5, 0.4, 200, 32), // Hero
-                new THREE.TorusKnotGeometry(0.7, 0.25, 100, 16),// Strip 1
-                new THREE.IcosahedronGeometry(0.8),             // Strip 2
-                new THREE.BoxGeometry(1.2, 1.2, 1.2),           // Strip 3
-                new THREE.DodecahedronGeometry(0.9),            // Strip 4
-                new THREE.SphereGeometry(0.8, 32, 32),          // Strip 5
-                new THREE.OctahedronGeometry(0.9)               // Strip 6
+                new THREE.TorusKnotGeometry(1.6, 0.45, 200, 32), // Hero Knot (0)
+                new THREE.TorusKnotGeometry(0.8, 0.28, 100, 16),// Equipment (1)
+                new THREE.IcosahedronGeometry(0.9),             // Training (2)
+                new THREE.BoxGeometry(1.3, 1.3, 1.3),           // Spaces (3)
+                new THREE.DodecahedronGeometry(0.95),           // VR (4)
+                new THREE.SphereGeometry(0.9, 32, 32),          // Global (5)
+                new THREE.OctahedronGeometry(1.0)               // Peak Days (6)
             ];
-            const colors = [0x46bad1, 0x46bad1, 0x8cc63f, 0xf7941d, 0x46bad1, 0xffcc00, 0xf15a24];
+
+            // צבעים מודגשים יותר לקטגוריות
+            const colors = [
+                0x46bad1, // Hero (Teal)
+                0x00acc1, // Equip (Teal כהה יותר)
+                0x689f38, // Training (Green כהה יותר)
+                0xe65100, // Spaces (Orange כהה)
+                0x00acc1, // VR
+                0xcf9c00, // Global (Gold - נראה על לבן)
+                0xd32f2f  // Red
+            ];
 
             geometries.forEach((geo, i) => {
-                const mat = new THREE.MeshPhongMaterial({ 
-                    color: colors[i], 
-                    shininess: 120, 
-                    transparent: true, 
-                    opacity: 0,
-                    wireframe: true // עיצוב הרשת העדינה
-                });
+                // הגדרות חומר שונות לצורה הראשית ולקטגוריות!
+                let matProps;
+                if (i === 0) {
+                    // --- תיקון לצורה הראשית (הירו) ---
+                    // הפכנו אותה לשקופה מאוד, עם "רשת" עדינה, כמעט בלתי נראית. 
+                    // כדי שלא תתנגש עם הטקסט השחור כפי שקרה בתמונה שצירפת.
+                    matProps = { 
+                        color: colors[i], 
+                        shininess: 300, 
+                        transparent: true, 
+                        opacity: 0.05, // שקופה לחלוטין!
+                        wireframe: true // משאירים את הרשת העדינה
+                    };
+                } else {
+                    // --- תיקון ל-6 הקטגוריות! ---
+                    // אנחנו הופכים אותן לצורות מלאות (Mesh), תלת מימדיות, יפות, 
+                    // בעלות צבע חזק ושקיפות חלקית כדי שייראו מעולה בזמן הסיבוב!
+                    matProps = { 
+                        color: colors[i], 
+                        shininess: 150, 
+                        transparent: true, 
+                        opacity: 0.9, // נוכחות חזקה!
+                        wireframe: false // צורה מלאה ותלת מימדית
+                    };
+                }
+
+                const mat = new THREE.MeshPhongMaterial(matProps);
                 const mesh = new THREE.Mesh(geo, mat);
                 mesh.position.y = i === 0 ? 0 : -i * 10;
-                mesh.position.x = i === 0 ? 0 : ((i % 2 === 1) ? 4 : -4);
+                mesh.position.x = i === 0 ? 0 : ((i % 2 === 1) ? 4.2 : -4.2); // הרחקה קלה מהטקסט
                 scene.add(mesh);
                 objects.push(mesh);
             });
@@ -64,15 +95,21 @@ export default function ThreeBackground() {
 
             const animate = () => {
                 animationId = requestAnimationFrame(animate);
-                objects.forEach((obj) => {
-                    obj.rotation.x += 0.005;
-                    obj.rotation.y += 0.008;
+                objects.forEach((obj, i) => {
+                    if (i > 0) {
+                        obj.rotation.x += 0.007;
+                        obj.rotation.y += 0.012;
+                    } else {
+                        // צורה ראשית מסתובבת לאט יותר
+                        obj.rotation.x += 0.001;
+                        obj.rotation.y += 0.002;
+                    }
                 });
                 renderer.render(scene, camera);
             };
             animate();
 
-            // נוסחת הגלילה והשקיפות המתוקנת
+            // נוסחת גלילה מעודכנת - הצורות גלויות יותר זמן!
             const handleScroll = () => {
                 const scrollY = window.scrollY;
                 const vh = window.innerHeight;
@@ -88,7 +125,9 @@ export default function ThreeBackground() {
                     const centerOffset = (vh / 2 - rect.top) / (vh / 2); 
 
                     if (rect.top < vh && rect.bottom > 0) {
-                        obj.material.opacity = Math.max(0, 1 - (Math.abs(centerOffset) * 0.4));
+                        // שיניתי את הנוסחה: הן נשארות גלויות לאורך זמן רב
+                        // רק כשהן ממש יוצאות מהמסך (centerOffset > 1) הן נעלמות
+                        obj.material.opacity = i === 0 ? 0.05 : Math.max(0, 0.9 - (Math.abs(centerOffset) * 0.2));
                         const scaleFactor = 1 + (1 - Math.abs(centerOffset)) * 0.3;
                         obj.scale.set(scaleFactor, scaleFactor, scaleFactor);
                         obj.position.z = (1 - Math.abs(centerOffset)) * 2;
@@ -99,7 +138,6 @@ export default function ThreeBackground() {
             };
             window.addEventListener('scroll', handleScroll);
             
-            // התאמה לשינוי גודל מסך
             window.addEventListener('resize', () => {
                 if (camera && renderer) {
                     camera.aspect = window.innerWidth / window.innerHeight;
