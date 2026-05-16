@@ -1,15 +1,48 @@
 import React, { useState } from 'react';
 import { db, appId } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, getDoc } from 'firebase/firestore';
 import Papa from 'papaparse';
 
 export default function ImportModal({ onClose, toast }) {
+    const [topicsMap, setTopicsMap] = useState(null); 
     const [file, setFile] = useState(null);
     const [importing, setImporting] = useState(false);
     const [progress, setProgress] = useState({ current: 0, total: 0 });
 
-    const handleImport = () => {
-        if (!file) return toast("אנא בחר את קובץ ה-CSV שהורדת מוורדפרס.");
+    // 1. קריאת קובץ הנושאים - שומר את השמות של הפרקים והשיוך לקורסים!
+    const handleTopicsUpload = (e) => {
+        const topicsFile = e.target.files[0];
+        if (!topicsFile) return;
+
+        Papa.parse(topicsFile, {
+            header: true,
+            skipEmptyLines: true,
+            transformHeader: (header) => header.trim(),
+            complete: (results) => {
+                const map = {};
+                results.data.forEach(row => {
+                    const topicId = row['ID'] || row.id;
+                    const topicTitle = row['Title'] || row.title || 'פרק כללי';
+                    const courseId = row['Post Parent'] || row['Parent'] || row.parent;
+                    
+                    if (topicId && courseId) {
+                        map[topicId.trim()] = {
+                            courseId: courseId.trim(),
+                            title: topicTitle.trim()
+                        };
+                    }
+                });
+                setTopicsMap(map);
+                toast("✅ מבנה הפרקים נטען בהצלחה! השמות נשמרו. אפשר לעבור לשיעורים.");
+            },
+            error: (err) => toast("שגיאה בטעינת קובץ המבנה: " + err.message)
+        });
+    };
+
+    // 2. קריאת קובץ השיעורים ושמירה על המבנה והשמות אחד לאחד
+    const handleLessonsImport = () => {
+        if (!file) return toast("אנא בחר את קובץ השיעורים (הסרטונים).");
+        if (!topicsMap) return toast("חובה לטעון קודם את קובץ הנושאים בשלב 1!");
         
         setImporting(true);
         
@@ -19,103 +52,89 @@ export default function ImportModal({ onClose, toast }) {
             transformHeader: (header) => header.trim(),
             complete: async (results) => {
                 const rows = results.data;
-                const courseRows = rows.filter(row => {
-                    const pt = row['Post Type'] || '';
-                    return pt !== 'lesson' && pt !== 'topic';
-                });
-                
-                setProgress({ current: 0, total: courseRows.length });
                 let successCount = 0;
+                let notFoundCount = 0;
                 
-                // פונקציית צייד: שולפת סרטונים מכל חור אפשרי, גם מתוך קוד נסתר של Tutor LMS
-                const extractVideos = (content, videoField, embedField) => {
+                const extractVideos = (content, videoField) => {
                     const links = new Set();
-                    const combined = (content || '') + " " + (videoField || '') + " " + (embedField || '');
-
-                    // 1. חיפוש לינקים רגילים ו-iframes של יוטיוב
+                    const combined = (content || '') + " " + (videoField || '');
                     const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|embed)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s<>]{11})/gi;
                     let match;
                     while ((match = ytRegex.exec(combined)) !== null) {
                         if (match[1]) links.add(`https://www.youtube.com/watch?v=${match[1]}`);
                     }
-
-                    // 2. חילוץ קוד נסתר מתוך Tutor LMS Settings
-                    const tutorYt = combined.match(/"source_video_id";s:\d+:"([^"]{11})"/gi);
-                    if (tutorYt) {
-                        tutorYt.forEach(m => {
-                            const idMatch = m.match(/"([^"]{11})"/);
-                            if (idMatch && idMatch[1]) links.add(`https://www.youtube.com/watch?v=${idMatch[1]}`);
-                        });
-                    }
-
-                    // 3. תמיכה גם ב-Vimeo למקרה שיש לך
-                    const vimeoRegex = /vimeo\.com\/(?:video\/)?([0-9]+)/gi;
-                    while ((match = vimeoRegex.exec(combined)) !== null) {
-                        if (match[1]) links.add(`https://vimeo.com/${match[1]}`);
-                    }
-
                     return Array.from(links);
                 };
-                
-                for (let i = 0; i < courseRows.length; i++) {
-                    const row = courseRows[i];
-                    
-                    const title = row['Title'] || row.Title || 'קורס מיובא ללא שם';
+
+                const coursesUpdates = {};
+
+                rows.forEach((row, i) => {
+                    // לוקחים את השם המקורי של השיעור!
+                    const lessonTitle = row['Title'] || row.Title || 'שיעור ללא שם';
                     const content = row['Content'] || row.Content || '';
-                    const excerpt = row['Excerpt'] || row.Excerpt || '';
-                    const imageUrl = row['Image URL'] || '';
-                    const categories = row['קטגוריות הקורס'] || '';
-                    
-                    const rawVideoField = row['_video'] || '';
-                    const rawEmbedField = row['_learndash_course_grid_video_embed_code'] || '';
+                    const rawVideo = row['_video'] || '';
+                    const topicId = row['Parent'] || row.Parent; // חיבור לפרק
 
-                    // מפעילים את צייד הסרטונים שלנו!
-                    const ytLinks = extractVideos(content, rawVideoField, rawEmbedField);
-
-                    // הופכים כל קישור שמצאנו לשיעור בפועל במערכת שלנו
-                    const lessons = ytLinks.map((url, idx) => ({
-                        id: `lesson-yt-${Date.now()}-${idx}`,
-                        title: ytLinks.length === 1 ? 'סרטון הקורס' : `סרטון שיעור ${idx + 1}`,
-                        type: 'link',
-                        url: url,
-                        content: '',
-                        description: 'יובא מהמערכת הישנה'
-                    }));
+                    if (!topicId) return;
                     
-                    let cleanSummary = excerpt.replace(/(<([^>]+)>)/gi, "").trim();
-                    if (!cleanSummary) {
-                        cleanSummary = content.replace(/(<([^>]+)>)/gi, "").trim();
-                        if (cleanSummary.length > 150) cleanSummary = cleanSummary.substring(0, 150) + "...";
+                    const topicData = topicsMap[topicId.trim()];
+                    if (!topicData) {
+                        notFoundCount++;
+                        return;
                     }
-                    
-                    const rowId = row['ID'] || row.ID;
-                    const id = rowId ? "wp-" + rowId : "imported-" + Date.now() + i;
-                    
-                    const courseData = {
-                        id: id,
-                        name: title,
-                        summary: cleanSummary || "אין תיאור לקורס זה",
-                        description: content, 
-                        fields: categories ? categories.split(',').map(c => c.trim()) : ['ייבוא מוורדפרס'],
-                        imageUrl: imageUrl, 
-                        fromGrade: 'א',
-                        toGrade: 'יב',
-                        meetingsCount: lessons.length > 0 ? lessons.length : 10,
-                        type: 'מיומנויות',
-                        lessons: lessons, // הזרקת השיעורים שמצאנו פנימה
-                        createdAt: new Date().toISOString()
+
+                    const ytLinks = extractVideos(content, rawVideo);
+                    const type = ytLinks.length > 0 ? 'link' : 'text';
+                    const url = ytLinks.length > 0 ? ytLinks[0] : '';
+                    const cleanContent = content.replace(/(<([^>]+)>)/gi, "").trim();
+
+                    // בונים את השיעור בדיוק כפי שהיה בוורדפרס
+                    const lesson = {
+                        id: `lesson-wp-${row.ID || row.id || Date.now() + i}`,
+                        title: lessonTitle, // השם המקורי
+                        chapter: topicData.title, // השם של הפרק/הנושא המקורי! (שומר על המבניות)
+                        type: type,
+                        url: url,
+                        content: type === 'text' ? cleanContent : '',
+                        description: 'יובא מוורדפרס'
                     };
 
+                    const courseId = `wp-${topicData.courseId}`;
+                    if (!coursesUpdates[courseId]) coursesUpdates[courseId] = [];
+                    coursesUpdates[courseId].push(lesson);
+                });
+
+                const courseIds = Object.keys(coursesUpdates);
+                setProgress({ current: 0, total: courseIds.length });
+                
+                for (let i = 0; i < courseIds.length; i++) {
+                    const courseId = courseIds[i];
+                    const lessonsToAdd = coursesUpdates[courseId];
+                    const courseRef = doc(db, 'artifacts', appId, 'public', 'data', 'courses', courseId);
+                    
                     try {
-                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', id), courseData);
-                        successCount++;
-                        setProgress({ current: successCount, total: courseRows.length });
+                        const courseSnap = await getDoc(courseRef);
+                        if (courseSnap.exists()) {
+                            const existingLessons = courseSnap.data().lessons || [];
+                            const existingIds = existingLessons.map(l => l.id);
+                            
+                            const newLessons = lessonsToAdd.filter(l => !existingIds.includes(l.id));
+                            
+                            if (newLessons.length > 0) {
+                                await updateDoc(courseRef, {
+                                    lessons: arrayUnion(...newLessons),
+                                    meetingsCount: existingLessons.length + newLessons.length
+                                });
+                                successCount += newLessons.length;
+                            }
+                        }
                     } catch (err) {
-                        console.error("שגיאה בשמירת קורס:", err);
+                        console.error("שגיאה בעדכון קורס:", err);
                     }
+                    setProgress({ current: i + 1, total: courseIds.length });
                 }
                 
-                toast(`הייבוא הושלם! ${successCount} קורסים עודכנו עם קישורי יוטיוב.`);
+                toast(`הייבוא הושלם! ${successCount} שיעורים חוברו למבנה הקורסים המקורי שלך.`);
                 setImporting(false);
                 onClose();
             },
@@ -130,37 +149,51 @@ export default function ImportModal({ onClose, toast }) {
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-[400]" onClick={onClose}>
             <div className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl p-10 text-right" dir="rtl" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-6 border-b pb-4">
-                    <h2 className="text-3xl font-black text-green-600">📥 ייבוא ועדכון סרטונים</h2>
+                    <h2 className="text-3xl font-black text-green-600">📥 שחזור היררכיית קורסים</h2>
                     <button onClick={onClose} className="text-slate-300 text-4xl hover:text-red-500 transition-colors">&times;</button>
                 </div>
 
                 <div className="space-y-6">
-                    <p className="text-slate-600 font-bold">
-                        בחר את הקובץ. המערכת תסרוק אותו כדי לצוד את כל קישורי היוטיוב שהיו חבויים בוורדפרס (כולל בקוד הנסתר), ותעדכן את הקורסים הריקים.
-                    </p>
+                    {/* שלב 1 */}
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                        <label className="block font-black text-slate-700 mb-2">📍 שלב 1: טען את קובץ ה"נושאים" (הפרקים)</label>
+                        <p className="text-xs text-slate-500 mb-3">קובץ זה שומר על שמות הפרקים שסידרת במערכת הישנה.</p>
+                        <input 
+                            type="file" 
+                            accept=".csv"
+                            onChange={handleTopicsUpload}
+                            className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+                            disabled={importing}
+                        />
+                    </div>
 
-                    <input 
-                        type="file" 
-                        accept=".csv"
-                        onChange={(e) => setFile(e.target.files[0])}
-                        className="w-full p-4 bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer font-bold text-slate-600"
-                        disabled={importing}
-                    />
+                    {/* שלב 2 */}
+                    <div className={`bg-slate-50 p-4 rounded-2xl border border-slate-200 ${!topicsMap ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <label className="block font-black text-slate-700 mb-2">🎬 שלב 2: בחר את קובץ ה"שיעורים"</label>
+                        <p className="text-xs text-slate-500 mb-3">כאן נמצאים הסרטונים ושמות השיעורים הספציפיים.</p>
+                        <input 
+                            type="file" 
+                            accept=".csv"
+                            onChange={(e) => setFile(e.target.files[0])}
+                            className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                            disabled={importing || !topicsMap}
+                        />
+                    </div>
 
                     {importing ? (
                         <div className="bg-green-50 p-6 rounded-2xl border-2 border-green-200 text-center">
-                            <p className="font-black text-green-800 text-xl mb-2">מייבא סרטונים, נא להמתין...</p>
-                            <p className="text-green-600 font-bold">{progress.current} מתוך {progress.total} קורסים נסרקו ועודכנו!</p>
+                            <p className="font-black text-green-800 text-xl mb-2">מעתיק את מבנה הקורסים 1:1...</p>
+                            <p className="text-green-600 font-bold">{progress.current} מתוך {progress.total} קורסים עודכנו!</p>
                             <div className="w-full bg-green-200 rounded-full h-4 mt-4 overflow-hidden">
                                 <div className="bg-green-600 h-full transition-all duration-300" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}></div>
                             </div>
                         </div>
                     ) : (
                         <button 
-                            onClick={handleImport} 
-                            disabled={!file}
+                            onClick={handleLessonsImport} 
+                            disabled={!file || !topicsMap}
                             className="w-full bg-slate-900 text-white py-4 rounded-[2rem] font-black text-xl hover:bg-green-600 transition-all shadow-xl active:scale-95 disabled:opacity-50">
-                            עדכן קורסים עם סרטונים 🚀
+                            התחל העתקה מדויקת 🚀
                         </button>
                     )}
                 </div>
