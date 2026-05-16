@@ -3,25 +3,49 @@ import { db, appId } from '../firebase';
 import { doc, updateDoc, arrayUnion, getDocs, collection, getDoc } from 'firebase/firestore';
 
 export default function ImportModal({ onClose, toast }) {
+    const [step, setStep] = useState(1);
     const [topicsMap, setTopicsMap] = useState(null); 
     const [file, setFile] = useState(null);
+    const [dbCourses, setDbCourses] = useState([]);
+    
+    // States for the matching phase
+    const [autoMatched, setAutoMatched] = useState([]);
+    const [unmatched, setUnmatched] = useState([]);
+    const [manualMatches, setManualMatches] = useState({}); 
+
     const [importing, setImporting] = useState(false);
     const [progress, setProgress] = useState({ current: 0, total: 0 });
 
     useEffect(() => {
+        // טעינת ספריית הפענוח
         if (!window.Papa) {
             const script = document.createElement('script');
             script.src = 'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js';
             document.head.appendChild(script);
         }
+
+        // שאיבת כל הקורסים הקיימים ב-DB מראש
+        const fetchDbCourses = async () => {
+            try {
+                const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'courses'));
+                setDbCourses(snap.docs.map(d => ({ dbId: d.id, ...d.data() })));
+            } catch (err) {
+                console.error("שגיאה בשליפת קורסים:", err);
+            }
+        };
+        fetchDbCourses();
     }, []);
 
-    const stringSimilarity = (str1, str2) => {
-        if (!str1 || !str2) return 0;
-        const s1 = str1.toLowerCase().replace(/[^a-zא-ת0-9]/g, '');
-        const s2 = str2.toLowerCase().replace(/[^a-zא-ת0-9]/g, '');
-        if (s1.includes(s2) || s2.includes(s1)) return 1;
-        return 0; 
+    // פונקציה חכמה שמנקה תווים ומתרגמת קידוד URL לעברית אמיתית!
+    const cleanString = (str) => {
+        if (!str) return '';
+        let decoded = str;
+        try { decoded = decodeURIComponent(str); } catch (e) {}
+        return decoded.toLowerCase().replace(/[^a-zא-ת0-9]/g, '');
+    };
+
+    const displaySlug = (slug) => {
+        try { return decodeURIComponent(slug); } catch (e) { return slug; }
     };
 
     const delay = (ms) => new Promise(res => setTimeout(res, ms));
@@ -52,39 +76,26 @@ export default function ImportModal({ onClose, toast }) {
                     }
                 });
                 setTopicsMap(map);
-                toast(`✅ נטענו ${Object.keys(map).length} פרקים למערכת! אפשר לעבור לשלב 2.`);
+                toast(`✅ נטענו ${Object.keys(map).length} פרקים למערכת! אפשר לעבור לשיעורים.`);
             },
             error: (err) => toast("שגיאה בטעינת קובץ המבנה: " + err.message)
         });
     };
 
-    const handleLessonsImport = async () => {
-        if (!file) return toast("אנא בחר את קובץ השיעורים (הסרטונים).");
+    // פעולת הסריקה הראשונית - מנתחת ומוצאת שידוכים, אך לא שומרת כלום עדיין!
+    const handlePrepareImport = () => {
+        if (!file) return toast("אנא בחר את קובץ השיעורים.");
         if (!topicsMap) return toast("חובה לטעון קודם את קובץ הנושאים בשלב 1!");
-        if (!window.Papa) return toast("המערכת נטענת, המתן שנייה ונסה שוב.");
+        if (dbCourses.length === 0) return toast("ממתין לטעינת הקורסים מהשרת, נסה שוב.");
         
         setImporting(true);
-
-        let existingDbCourses = [];
-        try {
-            const coursesRef = collection(db, 'artifacts', appId, 'public', 'data', 'courses');
-            const snap = await getDocs(coursesRef);
-            existingDbCourses = snap.docs.map(d => ({ dbId: d.id, ...d.data() }));
-        } catch (err) {
-            console.error("שגיאה בשליפת קורסים:", err);
-            toast("שגיאת התחברות למסד הנתונים.");
-            setImporting(false);
-            return;
-        }
         
         window.Papa.parse(file, {
             header: true,
             skipEmptyLines: true,
             transformHeader: (header) => header.trim().replace(/^[\u200B\u200C\uFEFF]+|[\u200B\u200C\uFEFF]+$/g, ''),
-            complete: async (results) => {
+            complete: (results) => {
                 const rows = results.data;
-                let successCount = 0;
-                let coursesUpdatedCount = 0;
                 
                 const extractVideos = (content, videoField) => {
                     const links = new Set();
@@ -134,75 +145,38 @@ export default function ImportModal({ onClose, toast }) {
                     coursesUpdates[courseId].lessons.push(lesson);
                 });
 
-                const courseIds = Object.keys(coursesUpdates);
-                setProgress({ current: 0, total: courseIds.length });
-                
-                for (let i = 0; i < courseIds.length; i++) {
-                    const rawCourseId = String(courseIds[i]).trim();
+                // חלוקה לאוטומטי מול ידני
+                const matchedList = [];
+                const unmatchedList = [];
+
+                Object.keys(coursesUpdates).forEach(wpCourseId => {
+                    const rawCourseId = String(wpCourseId).trim();
                     const cleanNumericId = rawCourseId.replace(/\D/g, ''); 
                     const courseDataToImport = coursesUpdates[rawCourseId];
-                    const lessonsToAdd = courseDataToImport.lessons;
-                    const searchSlug = courseDataToImport.slug;
+                    const searchSlugClean = cleanString(courseDataToImport.slug);
                     
-                    let matchedCourse = existingDbCourses.find(c => {
+                    let matchedCourse = dbCourses.find(c => {
                         const dbIdStr = String(c.dbId);
-                        const cName = String(c.name || '');
+                        const cNameClean = cleanString(c.name || '');
                         
                         return dbIdStr === rawCourseId || 
                                dbIdStr === `wp-${rawCourseId}` || 
-                               dbIdStr === `course-${rawCourseId}` || 
                                (cleanNumericId.length >= 3 && dbIdStr.includes(cleanNumericId)) || 
-                               String(c.id) === rawCourseId || 
                                String(c.wpId) === rawCourseId ||
-                               (searchSlug && cName && stringSimilarity(cName, searchSlug));
+                               (searchSlugClean && cNameClean && (cNameClean.includes(searchSlugClean) || searchSlugClean.includes(cNameClean)));
                     });
-                    
-                    if (matchedCourse) {
-                        try {
-                            const courseRef = doc(db, 'artifacts', appId, 'public', 'data', 'courses', matchedCourse.dbId);
-                            const currentDoc = await getDoc(courseRef);
-                            const currentData = currentDoc.data() || {};
-                            const existingLessons = currentData.lessons || [];
-                            const existingIds = existingLessons.map(l => l.id);
-                            
-                            const newLessons = lessonsToAdd.filter(l => !existingIds.includes(l.id));
-                            
-                            if (newLessons.length > 0) {
-                                // --- מנגנון ה"ביסים" שעוקף את ההגבלה של גוגל ---
-                                const MAX_LESSONS_PER_UPDATE = 40; 
-                                
-                                for (let j = 0; j < newLessons.length; j += MAX_LESSONS_PER_UPDATE) {
-                                    const chunk = newLessons.slice(j, j + MAX_LESSONS_PER_UPDATE);
-                                    
-                                    await updateDoc(courseRef, {
-                                        lessons: arrayUnion(...chunk),
-                                        meetingsCount: existingLessons.length + newLessons.length
-                                    });
-                                    
-                                    // נותן לשרת מנוחה של חצי שנייה כדי שלא יקרוס
-                                    await delay(500); 
-                                }
 
-                                successCount += newLessons.length;
-                                coursesUpdatedCount++;
-                            }
-                        } catch (err) {
-                            console.error(`שגיאה בעדכון קורס ${matchedCourse.dbId}:`, err);
-                            await delay(1000); // אם בכל זאת יש שגיאה, נחים שנייה שלמה וממשיכים
-                        }
+                    if (matchedCourse) {
+                        matchedList.push({ wpCourseId, dbId: matchedCourse.dbId, dbName: matchedCourse.name, lessons: courseDataToImport.lessons });
                     } else {
-                        console.warn(`לא מצאנו קורס עבור: ID=${rawCourseId}, Slug=${searchSlug}`);
+                        unmatchedList.push({ wpCourseId, wpSlug: courseDataToImport.slug || rawCourseId, lessons: courseDataToImport.lessons });
                     }
-                    setProgress({ current: i + 1, total: courseIds.length });
-                }
-                
-                if (successCount > 0) {
-                    toast(`הייבוא הושלם בהצלחה מטורפת! 🚀 ${successCount} שיעורים חוברו ל-${coursesUpdatedCount} קורסים במערכת.`);
-                } else {
-                    toast(`הסתיים, אך לא מצאנו לאילו קורסים לשייך או שהשיעורים כבר קיימים.`);
-                }
+                });
+
+                setAutoMatched(matchedList);
+                setUnmatched(unmatchedList);
                 setImporting(false);
-                onClose();
+                setStep(3); // מעבר למסך ההתאמה הידנית
             },
             error: (error) => {
                 toast("שגיאה בקריאת הקובץ: " + error.message);
@@ -211,55 +185,145 @@ export default function ImportModal({ onClose, toast }) {
         });
     };
 
+    // פעולת ההזרקה האמיתית לאחר שהמשתמש אישר הכל
+    const executeImport = async () => {
+        setStep(4);
+        setImporting(true);
+
+        const finalMatches = [...autoMatched];
+        
+        // הוספת הקורסים שהמשתמש שדך ידנית
+        unmatched.forEach(u => {
+            const selectedDbId = manualMatches[u.wpCourseId];
+            if (selectedDbId) {
+                finalMatches.push({ wpCourseId: u.wpCourseId, dbId: selectedDbId, lessons: u.lessons });
+            }
+        });
+
+        setProgress({ current: 0, total: finalMatches.length });
+        let successCount = 0;
+
+        for (let i = 0; i < finalMatches.length; i++) {
+            const match = finalMatches[i];
+            const courseRef = doc(db, 'artifacts', appId, 'public', 'data', 'courses', match.dbId);
+            
+            try {
+                const currentDoc = await getDoc(courseRef);
+                const currentData = currentDoc.data() || {};
+                const existingLessons = currentData.lessons || [];
+                const existingIds = existingLessons.map(l => l.id);
+                
+                const newLessons = match.lessons.filter(l => !existingIds.includes(l.id));
+                
+                if (newLessons.length > 0) {
+                    // --- מנגנון הביסים (Chunking) למניעת קריסת שרת ---
+                    const MAX_LESSONS_PER_UPDATE = 40; 
+                    
+                    for (let j = 0; j < newLessons.length; j += MAX_LESSONS_PER_UPDATE) {
+                        const chunk = newLessons.slice(j, j + MAX_LESSONS_PER_UPDATE);
+                        
+                        await updateDoc(courseRef, {
+                            lessons: arrayUnion(...chunk),
+                            meetingsCount: existingLessons.length + newLessons.length
+                        });
+                        
+                        await delay(500); // מנוחה של חצי שנייה לשרת
+                    }
+
+                    successCount += newLessons.length;
+                }
+            } catch (err) {
+                console.error(`שגיאה בעדכון קורס ${match.dbId}:`, err);
+                await delay(1000); 
+            }
+            setProgress({ current: i + 1, total: finalMatches.length });
+        }
+        
+        toast(`הייבוא הושלם בהצלחה מטורפת! 🚀 ${successCount} שיעורים חוברו.`);
+        setImporting(false);
+        onClose();
+    };
+
     return (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-[400]" onClick={onClose}>
-            <div className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl p-10 text-right" dir="rtl" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl p-10 text-right max-h-[90vh] overflow-hidden flex flex-col" dir="rtl" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-6 border-b pb-4 shrink-0">
                     <h2 className="text-3xl font-black text-green-600">📥 שחזור היררכיית קורסים</h2>
                     <button onClick={onClose} className="text-slate-300 text-4xl hover:text-red-500 transition-colors">&times;</button>
                 </div>
 
-                <div className="space-y-6">
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                        <label className="block font-black text-slate-700 mb-2">📍 שלב 1: טען את קובץ ה"נושאים" (הפרקים)</label>
-                        <p className="text-xs text-slate-500 mb-3">קובץ זה שומר על שמות הפרקים שסידרת במערכת הישנה.</p>
-                        <input 
-                            type="file" 
-                            accept=".csv"
-                            onChange={handleTopicsUpload}
-                            className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
-                            disabled={importing}
-                        />
-                    </div>
+                <div className="overflow-y-auto flex-1 pr-2 space-y-6">
+                    {(step === 1 || step === 2) && !importing && (
+                        <>
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                                <label className="block font-black text-slate-700 mb-2">📍 שלב 1: טען את קובץ ה"נושאים" (הפרקים)</label>
+                                <input type="file" accept=".csv" onChange={handleTopicsUpload} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700" />
+                            </div>
 
-                    <div className={`bg-slate-50 p-4 rounded-2xl border border-slate-200 ${!topicsMap ? 'opacity-50 pointer-events-none' : ''}`}>
-                        <label className="block font-black text-slate-700 mb-2">🎬 שלב 2: בחר את קובץ ה"שיעורים"</label>
-                        <p className="text-xs text-slate-500 mb-3">כאן נמצאים הסרטונים ושמות השיעורים הספציפיים.</p>
-                        <input 
-                            type="file" 
-                            accept=".csv"
-                            onChange={(e) => setFile(e.target.files[0])}
-                            className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
-                            disabled={importing || !topicsMap}
-                        />
-                    </div>
+                            <div className={`bg-slate-50 p-4 rounded-2xl border border-slate-200 ${!topicsMap ? 'opacity-50 pointer-events-none' : ''}`}>
+                                <label className="block font-black text-slate-700 mb-2">🎬 שלב 2: בחר את קובץ ה"שיעורים"</label>
+                                <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files[0])} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700" />
+                            </div>
 
-                    {importing ? (
+                            <button onClick={handlePrepareImport} disabled={!file || !topicsMap} className="w-full bg-slate-900 text-white py-4 rounded-[2rem] font-black text-xl hover:bg-purple-600 transition-all shadow-xl active:scale-95 disabled:opacity-50 mt-4">
+                                סרוק קבצים וזהה קורסים 🔍
+                            </button>
+                        </>
+                    )}
+
+                    {step === 3 && (
+                        <div className="space-y-4">
+                            <h3 className="text-2xl font-black text-slate-800">שלב 3: התאמת קורסים ידנית</h3>
+                            <p className="text-slate-600">סיימנו לסרוק! המערכת זיהתה וחיברה אוטומטית <span className="font-bold text-green-600">{autoMatched.length} קורסים</span> בהצלחה.</p>
+                            
+                            {unmatched.length > 0 && (
+                                <div className="mt-4 border-t pt-4">
+                                    <p className="font-bold text-red-600 mb-4">נותרו {unmatched.length} קורסים מהקובץ שלא מצאנו להם שידוך מדויק. אנא בחר מהרשימה לאיזה קורס לשייך אותם:</p>
+                                    
+                                    {unmatched.map(u => (
+                                        <div key={u.wpCourseId} className="bg-slate-50 p-4 rounded-xl mb-4 border border-slate-200 shadow-sm">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <span className="font-black text-slate-800 break-all">{displaySlug(u.wpSlug)}</span>
+                                                <span className="text-xs bg-slate-200 text-slate-700 px-3 py-1 rounded-full font-bold whitespace-nowrap mr-2">{u.lessons.length} שיעורים</span>
+                                            </div>
+                                            <select 
+                                                value={manualMatches[u.wpCourseId] || ''}
+                                                onChange={(e) => setManualMatches(prev => ({...prev, [u.wpCourseId]: e.target.value}))}
+                                                className="w-full p-3 rounded-lg border-2 border-slate-300 focus:border-purple-500 outline-none text-slate-700 bg-white font-medium"
+                                            >
+                                                <option value="">-- דילוג (לא לייבא) או בחר קורס --</option>
+                                                {dbCourses.map(c => (
+                                                    <option key={c.dbId} value={c.dbId}>{c.name || 'קורס ללא שם'}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="pt-4 border-t mt-6">
+                                <button onClick={executeImport} className="w-full bg-green-600 text-white py-4 rounded-[2rem] font-black text-xl hover:bg-green-700 transition-all shadow-xl active:scale-95">
+                                    התחל הזרקה למערכת 🚀
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {(importing && (step === 1 || step === 2)) && (
+                        <div className="text-center py-10">
+                            <p className="font-black text-purple-600 text-xl animate-pulse">מנתח ומפענח את הקבצים...</p>
+                        </div>
+                    )}
+
+                    {step === 4 && (
                         <div className="bg-green-50 p-6 rounded-2xl border-2 border-green-200 text-center">
-                            <p className="font-black text-green-800 text-xl mb-2">מחפש קורסים ומזריק שיעורים...</p>
-                            <p className="text-sm text-green-700 mb-2 font-bold animate-pulse">מפצל קורסים גדולים כדי למנוע קריסת שרת...</p>
-                            <p className="text-green-600 font-bold">{progress.current} מתוך {progress.total} קורסים נסרקו!</p>
+                            <p className="font-black text-green-800 text-xl mb-2">מזריק שיעורים ל-Database...</p>
+                            <p className="text-sm text-green-700 mb-2 font-bold animate-pulse">במידה ויש הרבה שיעורים, השרת נח כדי לא לקרוס.</p>
+                            <p className="text-green-600 font-black text-lg">{progress.current} מתוך {progress.total} קורסים עודכנו!</p>
                             <div className="w-full bg-green-200 rounded-full h-4 mt-4 overflow-hidden">
                                 <div className="bg-green-600 h-full transition-all duration-300" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}></div>
                             </div>
                         </div>
-                    ) : (
-                        <button 
-                            onClick={handleLessonsImport} 
-                            disabled={!file || !topicsMap}
-                            className="w-full bg-slate-900 text-white py-4 rounded-[2rem] font-black text-xl hover:bg-green-600 transition-all shadow-xl active:scale-95 disabled:opacity-50">
-                            התחל העתקה חכמה 🚀
-                        </button>
                     )}
                 </div>
             </div>
