@@ -15,17 +15,19 @@ import SmartContentModal from './components/SmartContentModal';
 import CompassView from './components/CompassView'; 
 import SmartCalendarModal from './components/SmartCalendarModal'; 
 import ImportModal from './components/ImportModal';
-import FloatingBot from './components/FloatingBot'; // הייבוא של הבוט הצף
+import FloatingBot from './components/FloatingBot';
+import LandingPage from './components/LandingPage'; // הייבוא של דף הנחיתה המדהים שלך
 import { onSnapshot, collection, doc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const DEFAULT_MAP_URL = "https://i.postimg.cc/Z5p6mR0H/Gemini-Generated-Image.jpg"; 
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.41"; // עדכון גרסה לבוט הצף
+export const APP_VERSION = "2.42"; // עודכן עם דף הנחיתה העוטף
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
+    const [showLanding, setShowLanding] = useState(true); // קובע האם להציג את דף הנחיתה בהתחלה
     const [lang, setLang] = useState('he');
     const [viewMode, setViewMode] = useState('admin'); 
     
@@ -106,8 +108,20 @@ export default function App() {
         || localMaps.find(m => m.isDefault)?.url 
         || DEFAULT_MAP_URL;
 
+    // התנאי החדש - אם אין משתמש מחובר, והוא אמור לראות את דף הנחיתה, נציג אותו
+    if (!currentUser && showLanding) {
+        return <LandingPage onLoginClick={() => setShowLanding(false)} />;
+    }
+
+    // מסך ההתחברות וההרשמה (מופיע רק אחרי שלוחצים על "להתחבר" בדף הנחיתה)
     if (!currentUser) return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center" dir={direction}>
+        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center relative" dir={direction}>
+            <button 
+                onClick={() => setShowLanding(true)} 
+                className="absolute top-6 right-6 text-white hover:text-purple-400 font-bold flex items-center gap-2 transition"
+            >
+                <span>&rarr;</span> חזרה לאתר הראשי
+            </button>
             {!isRegistering ? <Login onLogin={handleLogin} onRegisterToggle={()=>setIsRegistering(true)} lang={lang} setLang={setLang} t={t} /> 
             : <Register onBack={()=>setIsRegistering(false)} institutions={localInstitutions} users={localUsers} toast={setToast} />}
         </div>
@@ -120,7 +134,9 @@ export default function App() {
                 viewMode={viewMode} setViewMode={setViewMode}
                 activeSection={activeSection} setActiveSection={setActiveSection}
                 setViewingCourse={setViewingCourse} setActiveModal={setActiveModal}
-                t={t} direction={direction} onLogout={() => setCurrentUser(null)} LOGO_URL={LOGO_URL}
+                t={t} direction={direction} 
+                onLogout={() => { setCurrentUser(null); setShowLanding(true); }} // מוציא אותם בחזרה לדף הנחיתה ביציאה
+                LOGO_URL={LOGO_URL}
             />
 
             <main className="p-8 max-w-7xl mx-auto">
@@ -240,7 +256,6 @@ export default function App() {
                 />
             )}
 
-            {/* הבוט הצף המגניב שלנו */}
             <FloatingBot geminiKey={process.env.REACT_APP_GEMINI_API_KEY} />
             
             {toast && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-full font-black z-[400] shadow-2xl animate-bounce" style={{ animationDuration: '0.5s' }} ref={(el) => { if(el) setTimeout(() => setToast(''), 5000); }}>{toast}</div>}
