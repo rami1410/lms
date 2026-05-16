@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, appId } from '../firebase';
-import { doc, updateDoc, arrayUnion, getDocs, collection } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, getDocs, collection, getDoc } from 'firebase/firestore'; // הוספתי getDoc
 
 export default function ImportModal({ onClose, toast }) {
     const [topicsMap, setTopicsMap] = useState(null); 
@@ -16,14 +16,16 @@ export default function ImportModal({ onClose, toast }) {
         }
     }, []);
 
-    // פונקציית עזר למציאת התאמה חלקית בשמות
     const stringSimilarity = (str1, str2) => {
         if (!str1 || !str2) return 0;
         const s1 = str1.toLowerCase().replace(/[^a-zא-ת0-9]/g, '');
         const s2 = str2.toLowerCase().replace(/[^a-zא-ת0-9]/g, '');
         if (s1.includes(s2) || s2.includes(s1)) return 1;
-        return 0; // פשוט כדי לראות אם יש הכלה
+        return 0; 
     };
+
+    // --- הפונקציה החדשה שעושה את הקסם: ממתינה כדי לא לחנוק את השרת ---
+    const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
     const handleTopicsUpload = (e) => {
         const topicsFile = e.target.files[0];
@@ -39,7 +41,6 @@ export default function ImportModal({ onClose, toast }) {
                 results.data.forEach(row => {
                     const topicId = row['ID'] || row.id || row['Id'];
                     const topicTitle = row['Title'] || row.title || 'פרק כללי';
-                    // לפעמים שם הקורס הראשי מתחבא ב-Slug (כמו microbit-2)
                     const parentSlug = row['Parent Slug'] || '';
                     const courseId = row['Post Parent'] || row['Parent'] || row.parent;
                     
@@ -47,7 +48,7 @@ export default function ImportModal({ onClose, toast }) {
                         map[String(topicId).trim()] = {
                             courseId: String(courseId).trim(),
                             title: String(topicTitle).trim(),
-                            slug: String(parentSlug).split('/')[0] // מחלץ את השם הבסיסי
+                            slug: String(parentSlug).split('/')[0] 
                         };
                     }
                 });
@@ -65,13 +66,11 @@ export default function ImportModal({ onClose, toast }) {
         
         setImporting(true);
 
-        // משיכת כל הקורסים הקיימים ממסד הנתונים
         let existingDbCourses = [];
         try {
             const coursesRef = collection(db, 'artifacts', appId, 'public', 'data', 'courses');
             const snap = await getDocs(coursesRef);
             existingDbCourses = snap.docs.map(d => ({ dbId: d.id, ...d.data() }));
-            console.log("קורסים קיימים במסד:", existingDbCourses.length);
         } catch (err) {
             console.error("שגיאה בשליפת קורסים:", err);
             toast("שגיאת התחברות למסד הנתונים.");
@@ -139,6 +138,7 @@ export default function ImportModal({ onClose, toast }) {
                 const courseIds = Object.keys(coursesUpdates);
                 setProgress({ current: 0, total: courseIds.length });
                 
+                // === הלולאה החדשה, העוצרת ונושמת ===
                 for (let i = 0; i < courseIds.length; i++) {
                     const rawCourseId = String(courseIds[i]).trim();
                     const cleanNumericId = rawCourseId.replace(/\D/g, ''); 
@@ -146,7 +146,6 @@ export default function ImportModal({ onClose, toast }) {
                     const lessonsToAdd = courseDataToImport.lessons;
                     const searchSlug = courseDataToImport.slug;
                     
-                    // רשת ביטחון רחבה למציאת הקורס (ID או שם דומה!)
                     let matchedCourse = existingDbCourses.find(c => {
                         const dbIdStr = String(c.dbId);
                         const cName = String(c.name || '');
@@ -157,13 +156,16 @@ export default function ImportModal({ onClose, toast }) {
                                (cleanNumericId.length >= 3 && dbIdStr.includes(cleanNumericId)) || 
                                String(c.id) === rawCourseId || 
                                String(c.wpId) === rawCourseId ||
-                               (searchSlug && cName && stringSimilarity(cName, searchSlug)); // חיפוש לפי שם!
+                               (searchSlug && cName && stringSimilarity(cName, searchSlug));
                     });
                     
                     if (matchedCourse) {
                         try {
                             const courseRef = doc(db, 'artifacts', appId, 'public', 'data', 'courses', matchedCourse.dbId);
-                            const existingLessons = matchedCourse.lessons || [];
+                            // בקשה חדשה ל-DB לראות מה המצב העדכני של הקורס (כדי למנוע דריסות)
+                            const currentDoc = await getDoc(courseRef);
+                            const currentData = currentDoc.data() || {};
+                            const existingLessons = currentData.lessons || [];
                             const existingIds = existingLessons.map(l => l.id);
                             
                             const newLessons = lessonsToAdd.filter(l => !existingIds.includes(l.id));
@@ -175,9 +177,14 @@ export default function ImportModal({ onClose, toast }) {
                                 });
                                 successCount += newLessons.length;
                                 coursesUpdatedCount++;
+                                
+                                // השהיה קריטית - נותנים לגוגל לנשום!
+                                await delay(300); // 0.3 שניות מנוחה אחרי כל קורס שעודכן
                             }
                         } catch (err) {
-                            console.error("שגיאה בעדכון קורס:", err);
+                            console.error(`שגיאה בעדכון קורס ${matchedCourse.dbId}:`, err);
+                            // גם אם הייתה שגיאה נחכה טיפה שלא ייחנק
+                            await delay(500); 
                         }
                     } else {
                         console.warn(`לא מצאנו קורס עבור: ID=${rawCourseId}, Slug=${searchSlug}`);
@@ -188,7 +195,7 @@ export default function ImportModal({ onClose, toast }) {
                 if (successCount > 0) {
                     toast(`הייבוא הושלם בהצלחה מטורפת! 🚀 ${successCount} שיעורים חוברו ל-${coursesUpdatedCount} קורסים במערכת.`);
                 } else {
-                    toast(`הסתיים, אך לא מצאנו לאילו קורסים לשייך. ייתכן שיש פער משמעותי בין שמות הקורסים כאן לאלו ששמורים במערכת.`);
+                    toast(`הסתיים, אך לא מצאנו לאילו קורסים לשייך או שהשיעורים כבר קיימים.`);
                 }
                 setImporting(false);
                 onClose();
@@ -236,6 +243,7 @@ export default function ImportModal({ onClose, toast }) {
                     {importing ? (
                         <div className="bg-green-50 p-6 rounded-2xl border-2 border-green-200 text-center">
                             <p className="font-black text-green-800 text-xl mb-2">מחפש קורסים ומזריק שיעורים...</p>
+                            <p className="text-sm text-green-700 mb-2 font-bold animate-pulse">נותן לשרת "לנשום" בין קורס לקורס...</p>
                             <p className="text-green-600 font-bold">{progress.current} מתוך {progress.total} קורסים נסרקו!</p>
                             <div className="w-full bg-green-200 rounded-full h-4 mt-4 overflow-hidden">
                                 <div className="bg-green-600 h-full transition-all duration-300" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}></div>
