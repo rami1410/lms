@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, appId } from '../firebase';
-import { doc, updateDoc, arrayUnion, getDocs, collection, getDoc } from 'firebase/firestore'; // הוספתי getDoc
+import { doc, updateDoc, arrayUnion, getDocs, collection, getDoc } from 'firebase/firestore';
 
 export default function ImportModal({ onClose, toast }) {
     const [topicsMap, setTopicsMap] = useState(null); 
@@ -24,7 +24,6 @@ export default function ImportModal({ onClose, toast }) {
         return 0; 
     };
 
-    // --- הפונקציה החדשה שעושה את הקסם: ממתינה כדי לא לחנוק את השרת ---
     const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
     const handleTopicsUpload = (e) => {
@@ -138,7 +137,6 @@ export default function ImportModal({ onClose, toast }) {
                 const courseIds = Object.keys(coursesUpdates);
                 setProgress({ current: 0, total: courseIds.length });
                 
-                // === הלולאה החדשה, העוצרת ונושמת ===
                 for (let i = 0; i < courseIds.length; i++) {
                     const rawCourseId = String(courseIds[i]).trim();
                     const cleanNumericId = rawCourseId.replace(/\D/g, ''); 
@@ -162,7 +160,6 @@ export default function ImportModal({ onClose, toast }) {
                     if (matchedCourse) {
                         try {
                             const courseRef = doc(db, 'artifacts', appId, 'public', 'data', 'courses', matchedCourse.dbId);
-                            // בקשה חדשה ל-DB לראות מה המצב העדכני של הקורס (כדי למנוע דריסות)
                             const currentDoc = await getDoc(courseRef);
                             const currentData = currentDoc.data() || {};
                             const existingLessons = currentData.lessons || [];
@@ -171,20 +168,27 @@ export default function ImportModal({ onClose, toast }) {
                             const newLessons = lessonsToAdd.filter(l => !existingIds.includes(l.id));
                             
                             if (newLessons.length > 0) {
-                                await updateDoc(courseRef, {
-                                    lessons: arrayUnion(...newLessons),
-                                    meetingsCount: existingLessons.length + newLessons.length
-                                });
+                                // --- מנגנון ה"ביסים" שעוקף את ההגבלה של גוגל ---
+                                const MAX_LESSONS_PER_UPDATE = 40; 
+                                
+                                for (let j = 0; j < newLessons.length; j += MAX_LESSONS_PER_UPDATE) {
+                                    const chunk = newLessons.slice(j, j + MAX_LESSONS_PER_UPDATE);
+                                    
+                                    await updateDoc(courseRef, {
+                                        lessons: arrayUnion(...chunk),
+                                        meetingsCount: existingLessons.length + newLessons.length
+                                    });
+                                    
+                                    // נותן לשרת מנוחה של חצי שנייה כדי שלא יקרוס
+                                    await delay(500); 
+                                }
+
                                 successCount += newLessons.length;
                                 coursesUpdatedCount++;
-                                
-                                // השהיה קריטית - נותנים לגוגל לנשום!
-                                await delay(300); // 0.3 שניות מנוחה אחרי כל קורס שעודכן
                             }
                         } catch (err) {
                             console.error(`שגיאה בעדכון קורס ${matchedCourse.dbId}:`, err);
-                            // גם אם הייתה שגיאה נחכה טיפה שלא ייחנק
-                            await delay(500); 
+                            await delay(1000); // אם בכל זאת יש שגיאה, נחים שנייה שלמה וממשיכים
                         }
                     } else {
                         console.warn(`לא מצאנו קורס עבור: ID=${rawCourseId}, Slug=${searchSlug}`);
@@ -243,7 +247,7 @@ export default function ImportModal({ onClose, toast }) {
                     {importing ? (
                         <div className="bg-green-50 p-6 rounded-2xl border-2 border-green-200 text-center">
                             <p className="font-black text-green-800 text-xl mb-2">מחפש קורסים ומזריק שיעורים...</p>
-                            <p className="text-sm text-green-700 mb-2 font-bold animate-pulse">נותן לשרת "לנשום" בין קורס לקורס...</p>
+                            <p className="text-sm text-green-700 mb-2 font-bold animate-pulse">מפצל קורסים גדולים כדי למנוע קריסת שרת...</p>
                             <p className="text-green-600 font-bold">{progress.current} מתוך {progress.total} קורסים נסרקו!</p>
                             <div className="w-full bg-green-200 rounded-full h-4 mt-4 overflow-hidden">
                                 <div className="bg-green-600 h-full transition-all duration-300" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}></div>
