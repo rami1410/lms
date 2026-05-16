@@ -1,14 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
+import ThreeBackground from './ThreeBackground';
+import Accessibility from './Accessibility';
 
 export default function LandingPage({ onLoginClick }) {
-    const canvasContainerRef = useRef(null);
     const chartRef = useRef(null);
     const [activeModal, setActiveModal] = useState(null);
-
-    // --- מערכת הנגישות ---
-    const [accOpen, setAccOpen] = useState(false);
-    const [accSettings, setAccSettings] = useState({ contrast: false, largeText: false, highlightLinks: false });
-    const toggleAcc = (key) => setAccSettings(prev => ({ ...prev, [key]: !prev[key] }));
 
     const modalData = {
         law: { title: "עו\"ד וקניין רוחני", body: "רמי חדאד הינו עו\"ד מוסמך (LL.B) עם התמחות עמוקה בקניין רוחני. ניסיון זה מאפשר לקבוצה להגן על פיתוחיה הטכנולוגיים והפדגוגיים הייחודיים, תוך יצירת שותפויות בינלאומיות בסטנדרטים המשפטיים והאתיים הגבוהים ביותר." },
@@ -19,119 +15,32 @@ export default function LandingPage({ onLoginClick }) {
         vision: { title: "חזון הלומד העצמאי", body: "האמונה המנחה של רמי היא שהטכנולוגיה היא כלי להעצמת הילד. המטרה המרכזית היא פיתוח 'לומד אוטונומי' שמסוגל ללמוד כל דבר בכוחות עצמו, תוך שימוש מושכל בבינה מלאכותית ורובוטיקה ככלים לפיתוח חשיבה, יצירתיות ורגש." }
     };
 
+    const partners = [
+        { src: "https://i.postimg.cc/7Ytd16kw/images-(2).png", alt: "משרד החינוך" },
+        { src: "https://i.postimg.cc/90hChfMH/images-(1).png", alt: "משרד הביטחון" },
+        { src: "https://i.postimg.cc/WzgLYcw2/Badge-of-the-Israeli-Defense-Forces-2022-version-svg.png", alt: "צהל" },
+        { src: "https://i.postimg.cc/kMyVjsTr/images-(5).png", alt: "קק'ל" },
+        { src: "https://i.postimg.cc/GmdZwJ8M/ort-israel-technology-science-educational-network-logo.jpg", alt: "רשת אורט" },
+        { src: "https://i.postimg.cc/6pKN6xSv/images-(4).png", alt: "רשת עמל" },
+        { src: "https://i.postimg.cc/cHc5v1h4/images-(3).png", alt: "עיריית חיפה" },
+        { src: "https://i.postimg.cc/TwrvCXck/images.jpg", alt: "אפטר סקול" }
+    ];
+
     useEffect(() => {
-        const loadScripts = async () => {
-            const addScript = (src) => new Promise((resolve) => {
-                if (document.querySelector(`script[src="${src}"]`)) return resolve();
+        // טעינת הגרף בלבד (התלת מימד עבר לקובץ משלו)
+        const loadChartJS = async () => {
+            if (!document.querySelector(`script[src="https://cdn.jsdelivr.net/npm/chart.js"]`)) {
                 const s = document.createElement('script');
-                s.src = src;
-                s.onload = resolve;
+                s.src = 'https://cdn.jsdelivr.net/npm/chart.js';
                 document.head.appendChild(s);
-            });
-            await addScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
-            await addScript('https://cdn.jsdelivr.net/npm/chart.js');
-            initPageLogic();
+                s.onload = initChart;
+            } else {
+                initChart();
+            }
         };
 
-        loadScripts();
-
-        let scene, camera, renderer, objects = [];
-        let animationId;
-        let observer;
-
-        function initPageLogic() {
-            const THREE = window.THREE;
+        function initChart() {
             const Chart = window.Chart;
-
-            if (THREE && canvasContainerRef.current && !renderer) {
-                scene = new THREE.Scene();
-                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-                renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                canvasContainerRef.current.appendChild(renderer.domElement);
-
-                const light = new THREE.PointLight(0xffffff, 1.5, 100);
-                light.position.set(5, 5, 5);
-                scene.add(light);
-                scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-
-                // 7 אובייקטים בסך הכל (1 הירו ראשי + 6 קטגוריות)
-                const geometries = [
-                    new THREE.TorusKnotGeometry(1.5, 0.4, 200, 32), // Hero (Index 0)
-                    new THREE.TorusKnotGeometry(0.7, 0.25, 100, 16),// Strip 1
-                    new THREE.IcosahedronGeometry(0.8),             // Strip 2
-                    new THREE.BoxGeometry(1.2, 1.2, 1.2),           // Strip 3
-                    new THREE.DodecahedronGeometry(0.9),            // Strip 4
-                    new THREE.SphereGeometry(0.8, 32, 32),          // Strip 5
-                    new THREE.OctahedronGeometry(0.9)               // Strip 6
-                ];
-                const colors = [0x46bad1, 0x46bad1, 0x8cc63f, 0xf7941d, 0x46bad1, 0xffcc00, 0xf15a24];
-
-                geometries.forEach((geo, i) => {
-                    const mat = new THREE.MeshPhongMaterial({ 
-                        color: colors[i], 
-                        shininess: 120, 
-                        transparent: true, 
-                        opacity: 0,
-                        wireframe: true // הכל רשת עדינה ותלת מימדית
-                    });
-                    const mesh = new THREE.Mesh(geo, mat);
-                    // מיקומים שונים - 0 הוא ההירו, השאר לפסקאות
-                    mesh.position.y = i === 0 ? 0 : -i * 10;
-                    mesh.position.x = i === 0 ? 0 : ((i % 2 === 1) ? 4 : -4);
-                    scene.add(mesh);
-                    objects.push(mesh);
-                });
-
-                camera.position.z = 6;
-
-                const animate = () => {
-                    animationId = requestAnimationFrame(animate);
-                    objects.forEach((obj) => {
-                        obj.rotation.x += 0.005;
-                        obj.rotation.y += 0.008;
-                    });
-                    renderer.render(scene, camera);
-                };
-                animate();
-
-                // סנכרון גלילה מתוקן - כך הצורות נשארות גלויות הרבה יותר זמן!
-                const handleScroll = () => {
-                    const scrollY = window.scrollY;
-                    const vh = window.innerHeight;
-                    
-                    if(camera) camera.position.y = - (scrollY / vh) * 10;
-
-                    objects.forEach((obj, i) => {
-                        const targetId = i === 0 ? 'hero' : `strip-${i}`;
-                        const element = document.getElementById(targetId);
-                        if (!element) return;
-
-                        const rect = element.getBoundingClientRect();
-                        const centerOffset = (vh / 2 - rect.top) / (vh / 2); // -1 to 1
-
-                        if (rect.top < vh && rect.bottom > 0) {
-                            // שיניתי את הנוסחה: עכשיו האטימות חזקה ונשארת לזמן רב
-                            obj.material.opacity = Math.max(0, 1 - (Math.abs(centerOffset) * 0.4));
-                            const scaleFactor = 1 + (1 - Math.abs(centerOffset)) * 0.3;
-                            obj.scale.set(scaleFactor, scaleFactor, scaleFactor);
-                            obj.position.z = (1 - Math.abs(centerOffset)) * 2;
-                        } else {
-                            obj.material.opacity = 0;
-                        }
-                    });
-                };
-                window.addEventListener('scroll', handleScroll);
-            }
-
-            observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) entry.target.classList.add('visible');
-                });
-            }, { threshold: 0.2 });
-
-            document.querySelectorAll('[data-observe="true"]').forEach(el => observer.observe(el));
-
             if (Chart && chartRef.current && !chartRef.current.chartInstance) {
                 chartRef.current.chartInstance = new Chart(chartRef.current, {
                     type: 'bar',
@@ -157,34 +66,32 @@ export default function LandingPage({ onLoginClick }) {
             }
         }
 
+        loadChartJS();
+
+        // אנימציית החלקה לאלמנטים בגלילה
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) entry.target.classList.add('visible');
+            });
+        }, { threshold: 0.2 });
+
+        document.querySelectorAll('[data-observe="true"]').forEach(el => observer.observe(el));
+
         return () => {
-            if (animationId) cancelAnimationFrame(animationId);
-            window.removeEventListener('scroll', () => {});
             if (observer) observer.disconnect();
-            if (renderer && canvasContainerRef.current) {
-                canvasContainerRef.current.removeChild(renderer.domElement);
-                renderer.dispose();
-            }
         };
     }, []);
 
-    // שותפים - מערך תמונות (מונע תמונות שבורות)
-    const partners = [
-        { src: "https://i.postimg.cc/7Ytd16kw/images-(2).png", alt: "משרד החינוך" },
-        { src: "https://i.postimg.cc/90hChfMH/images-(1).png", alt: "משרד הביטחון" },
-        { src: "https://i.postimg.cc/WzgLYcw2/Badge-of-the-Israeli-Defense-Forces-2022-version-svg.png", alt: "צהל" },
-        { src: "https://i.postimg.cc/kMyVjsTr/images-(5).png", alt: "קק'ל" },
-        { src: "https://i.postimg.cc/GmdZwJ8M/ort-israel-technology-science-educational-network-logo.jpg", alt: "רשת אורט" },
-        { src: "https://i.postimg.cc/6pKN6xSv/images-(4).png", alt: "רשת עמל" },
-        { src: "https://i.postimg.cc/cHc5v1h4/images-(3).png", alt: "עיריית חיפה" },
-        { src: "https://i.postimg.cc/TwrvCXck/images.jpg", alt: "אפטר סקול" }
-    ];
-
     return (
-        <div className={`antialiased font-sans ${accSettings.largeText ? 'text-lg' : ''}`} dir="rtl">
+        <div className="antialiased font-sans relative" dir="rtl">
+            {/* שילוב רקע התלת-מימד */}
+            <ThreeBackground />
+            
+            {/* שילוב כלי הנגישות */}
+            <Accessibility />
+
             <style>{`
                 body { scroll-behavior: smooth; overflow-x: hidden; }
-                #canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; z-index: 10; pointer-events: none; }
                 .section-strip { position: relative; min-height: 100vh; display: flex; align-items: center; padding: 5rem 0; z-index: 20; }
                 .category-content { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); border-radius: 2rem; transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1); opacity: 0; transform: translateX(100px); }
                 .category-content.visible { opacity: 1; transform: translateX(0); }
@@ -206,32 +113,16 @@ export default function LandingPage({ onLoginClick }) {
                 
                 .personal-box { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; border: 1px solid #f0f0f0; }
                 .personal-box:hover { transform: translateY(-10px); border-color: #46bad1; box-shadow: 0 20px 40px rgba(70,186,209,0.2); }
+                
+                @media print { .no-print { display: none !important; } }
 
-                /* צבעים מרכזיים */
                 .text-chotam-teal { color: #46bad1; } .bg-chotam-teal { background-color: #46bad1; } .border-chotam-teal { border-color: #46bad1; }
                 .text-chotam-green { color: #8cc63f; } .bg-chotam-green { background-color: #8cc63f; } .border-chotam-green { border-color: #8cc63f; }
                 .text-chotam-yellow { color: #ffcc00; } .bg-chotam-yellow { background-color: #ffcc00; } .border-chotam-yellow { border-color: #ffcc00; }
                 .text-chotam-orange { color: #f7941d; } .bg-chotam-orange { background-color: #f7941d; } .border-chotam-orange { border-color: #f7941d; }
                 .text-chotam-red { color: #f15a24; } .bg-chotam-red { background-color: #f15a24; } .border-chotam-red { border-color: #f15a24; }
                 .text-chotam-black { color: #1a1a1a; } .bg-chotam-black { background-color: #1a1a1a; }
-
-                /* CSS הנגשה */
-                ${accSettings.contrast ? `
-                    .bg-white, .bg-slate-50, .bg-gray-50 { background-color: #121212 !important; color: #fff !important; border-color: #333 !important; }
-                    .text-slate-600, .text-gray-600, .text-gray-500, .text-slate-800, .text-chotam-black { color: #fff !important; }
-                    p, h1, h2, h3, h4, span { color: #fff !important; text-shadow: none !important; }
-                    .category-content, .personal-box { background: rgba(0,0,0,0.9) !important; }
-                    .marquee-container { background: #000 !important; border-color: #333 !important; }
-                    .partner-logo { background: #222 !important; border-color: #444 !important; }
-                ` : ''}
-                ${accSettings.highlightLinks ? `
-                    a, button { text-decoration: underline !important; font-weight: 900 !important; }
-                ` : ''}
-                
-                @media print { .no-print { display: none !important; } }
             `}</style>
-
-            <div id="canvas-container" ref={canvasContainerRef}></div>
 
             <header className="fixed top-0 w-full bg-white/90 backdrop-blur-md shadow-sm z-[100] no-print">
                 <div className="max-w-7xl mx-auto px-4 flex justify-between items-center h-24">
@@ -240,7 +131,6 @@ export default function LandingPage({ onLoginClick }) {
                         <nav className="hidden lg:flex gap-8 text-sm font-bold text-chotam-black tracking-widest uppercase items-center">
                             <a href="#hero" className="hover:text-chotam-teal transition">התחלה</a>
                             
-                            {/* תפריט נפתח לפעילות */}
                             <div className="relative group py-4">
                                 <a href="#sectors" className="hover:text-chotam-teal transition flex items-center gap-1 cursor-pointer">
                                     פעילות <span className="text-[10px] opacity-50 relative top-px">▼</span>
@@ -277,7 +167,7 @@ export default function LandingPage({ onLoginClick }) {
                 </div>
                 
                 <div className="scroll-indicator" onClick={() => window.scrollTo({top: window.innerHeight, behavior: 'smooth'})}>
-                    <span className="text-xs font-bold uppercase tracking-[0.3em] mb-2 block">גלול מטה</span>
+                    <span className="text-xs font-bold uppercase tracking-[0.3em] mb-2 block cursor-pointer">גלול מטה</span>
                     <svg className="mx-auto" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M7 13l5 5 5-5M7 6l5 5 5-5" />
                     </svg>
@@ -285,7 +175,6 @@ export default function LandingPage({ onLoginClick }) {
             </section>
 
             <section id="sectors">
-                {/* 1. ציוד */}
                 <div className="section-strip" id="strip-1">
                     <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-2 gap-16 items-center">
                         <div className="category-content p-8 md:p-12 order-2 md:order-1" data-observe="true">
@@ -301,7 +190,6 @@ export default function LandingPage({ onLoginClick }) {
                     </div>
                 </div>
 
-                {/* 2. הדרכה */}
                 <div className="section-strip bg-gray-50/50" id="strip-2">
                     <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-2 gap-16 items-center">
                         <div className="category-image-wrapper" data-observe="true">
@@ -317,7 +205,6 @@ export default function LandingPage({ onLoginClick }) {
                     </div>
                 </div>
 
-                {/* 3. מרחבים */}
                 <div className="section-strip" id="strip-3">
                     <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-2 gap-16 items-center">
                         <div className="category-content p-8 md:p-12 order-2 md:order-1" data-observe="true">
@@ -333,7 +220,6 @@ export default function LandingPage({ onLoginClick }) {
                     </div>
                 </div>
 
-                {/* 4. חלומציאות */}
                 <div className="section-strip bg-gray-50/50" id="strip-4">
                     <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-2 gap-16 items-center">
                         <div className="category-image-wrapper" data-observe="true">
@@ -349,7 +235,6 @@ export default function LandingPage({ onLoginClick }) {
                     </div>
                 </div>
 
-                {/* 5. משלחות */}
                 <div className="section-strip" id="strip-5">
                     <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-2 gap-16 items-center">
                         <div className="category-content p-8 md:p-12 order-2 md:order-1" data-observe="true">
@@ -365,7 +250,6 @@ export default function LandingPage({ onLoginClick }) {
                     </div>
                 </div>
 
-                {/* 6. סדנאות */}
                 <div className="section-strip bg-gray-50/50" id="strip-6">
                     <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-2 gap-16 items-center">
                         <div className="category-image-wrapper" data-observe="true">
@@ -382,8 +266,7 @@ export default function LandingPage({ onLoginClick }) {
                 </div>
             </section>
 
-            {/* שותפים לדרך (עם תפיסת שגיאת תמונה להסתרתה) */}
-            <section id="partners" className="py-16 bg-white overflow-hidden no-print">
+            <section id="partners" className="py-16 bg-white overflow-hidden no-print z-20 relative">
                 <div className="marquee-container flex flex-col items-center">
                     <h2 className="text-4xl md:text-5xl font-extrabold text-chotam-black mb-10 italic">שותפים לדרך</h2>
                     <div className="marquee-track">
@@ -392,7 +275,6 @@ export default function LandingPage({ onLoginClick }) {
                                 <img src={p.src} alt={p.alt} onError={(e) => e.target.style.display='none'} />
                             </div>
                         ))}
-                        {/* שיכפול כדי שהלולאה תרוץ ברצף */}
                         {partners.map((p, idx) => (
                             <div key={`p2-${idx}`} className="partner-logo">
                                 <img src={p.src} alt={p.alt} onError={(e) => e.target.style.display='none'} />
@@ -402,7 +284,7 @@ export default function LandingPage({ onLoginClick }) {
                 </div>
             </section>
 
-            <section id="impact" className="py-24 bg-white border-t border-gray-100">
+            <section id="impact" className="py-24 bg-white border-t border-gray-100 z-20 relative">
                 <div className="max-w-7xl mx-auto px-4 flex flex-col lg:flex-row items-center gap-20">
                     <div className="lg:w-1/2">
                         <h2 className="text-5xl font-extrabold text-chotam-black mb-12 border-r-[12px] border-chotam-teal pr-8 italic">האימפקט שלנו</h2>
@@ -419,7 +301,7 @@ export default function LandingPage({ onLoginClick }) {
                 </div>
             </section>
 
-            <section id="rami" className="py-24 bg-gray-50 border-t border-gray-200">
+            <section id="rami" className="py-24 bg-gray-50 border-t border-gray-200 z-20 relative">
                 <div className="max-w-7xl mx-auto px-4 text-center mb-16">
                     <h2 className="text-5xl font-extrabold text-chotam-black mb-6 tracking-tighter">רמי חדאד</h2>
                     <p className="text-2xl text-gray-500 font-light max-w-3xl mx-auto leading-relaxed italic">
@@ -450,7 +332,7 @@ export default function LandingPage({ onLoginClick }) {
                 </div>
             </section>
 
-            <footer id="contact" className="bg-chotam-black text-white py-24 text-center no-print">
+            <footer id="contact" className="bg-chotam-black text-white py-24 text-center no-print z-20 relative">
                 <div className="max-w-4xl mx-auto px-4">
                     <h2 className="text-6xl font-extrabold mb-14 italic tracking-tighter">להפוך חלום למציאות.</h2>
                     <div className="flex flex-col sm:flex-row justify-center gap-10 mb-20">
@@ -462,9 +344,8 @@ export default function LandingPage({ onLoginClick }) {
                 </div>
             </footer>
 
-            {/* Modal Popup */}
             {activeModal && (
-                <div className="modal-overlay" style={{display: 'flex'}} onClick={() => setActiveModal(null)}>
+                <div className="modal-overlay z-[5000]" style={{display: 'flex'}} onClick={() => setActiveModal(null)}>
                     <div className="modal-content" onClick={e => e.stopPropagation()}>
                         <button className="absolute top-8 left-8 text-3xl text-gray-300 hover:text-chotam-red transition" onClick={() => setActiveModal(null)}>&#10005;</button>
                         <h3 className="text-4xl font-black text-chotam-teal mb-8">{modalData[activeModal].title}</h3>
@@ -473,35 +354,6 @@ export default function LandingPage({ onLoginClick }) {
                     </div>
                 </div>
             )}
-
-            {/* --- כפתור וחלון נגישות --- */}
-            <div className="fixed bottom-6 left-6 z-[6000] no-print">
-                {accOpen && (
-                    <div className="bg-white p-6 rounded-2xl shadow-2xl border border-slate-100 mb-4 w-64 text-right">
-                        <h4 className="font-bold text-slate-800 border-b pb-2 mb-4">תפריט נגישות ♿</h4>
-                        <div className="space-y-4">
-                            <label className="flex items-center justify-between cursor-pointer group">
-                                <span className="text-sm font-semibold text-slate-700 group-hover:text-chotam-teal">ניגודיות גבוהה</span>
-                                <input type="checkbox" checked={accSettings.contrast} onChange={() => toggleAcc('contrast')} className="w-5 h-5 accent-chotam-teal" />
-                            </label>
-                            <label className="flex items-center justify-between cursor-pointer group">
-                                <span className="text-sm font-semibold text-slate-700 group-hover:text-chotam-teal">טקסט מוגדל</span>
-                                <input type="checkbox" checked={accSettings.largeText} onChange={() => toggleAcc('largeText')} className="w-5 h-5 accent-chotam-teal" />
-                            </label>
-                            <label className="flex items-center justify-between cursor-pointer group">
-                                <span className="text-sm font-semibold text-slate-700 group-hover:text-chotam-teal">הדגשת קישורים</span>
-                                <input type="checkbox" checked={accSettings.highlightLinks} onChange={() => toggleAcc('highlightLinks')} className="w-5 h-5 accent-chotam-teal" />
-                            </label>
-                        </div>
-                    </div>
-                )}
-                <button 
-                    onClick={() => setAccOpen(!accOpen)}
-                    className="bg-[#1a1a1a] text-white w-14 h-14 rounded-full flex items-center justify-center text-3xl shadow-xl hover:scale-110 transition border-2 border-white"
-                    title="אפשרויות נגישות">
-                    ♿
-                </button>
-            </div>
         </div>
     );
 }
