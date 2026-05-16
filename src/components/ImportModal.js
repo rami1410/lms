@@ -8,7 +8,6 @@ export default function ImportModal({ onClose, toast }) {
     const [file, setFile] = useState(null);
     const [dbCourses, setDbCourses] = useState([]);
     
-    // States for the matching phase
     const [autoMatched, setAutoMatched] = useState([]);
     const [unmatched, setUnmatched] = useState([]);
     const [manualMatches, setManualMatches] = useState({}); 
@@ -17,14 +16,12 @@ export default function ImportModal({ onClose, toast }) {
     const [progress, setProgress] = useState({ current: 0, total: 0 });
 
     useEffect(() => {
-        // טעינת ספריית הפענוח
         if (!window.Papa) {
             const script = document.createElement('script');
             script.src = 'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js';
             document.head.appendChild(script);
         }
 
-        // שאיבת כל הקורסים הקיימים ב-DB מראש
         const fetchDbCourses = async () => {
             try {
                 const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'courses'));
@@ -36,7 +33,6 @@ export default function ImportModal({ onClose, toast }) {
         fetchDbCourses();
     }, []);
 
-    // פונקציה חכמה שמנקה תווים ומתרגמת קידוד URL לעברית אמיתית!
     const cleanString = (str) => {
         if (!str) return '';
         let decoded = str;
@@ -82,7 +78,6 @@ export default function ImportModal({ onClose, toast }) {
         });
     };
 
-    // פעולת הסריקה הראשונית - מנתחת ומוצאת שידוכים, אך לא שומרת כלום עדיין!
     const handlePrepareImport = () => {
         if (!file) return toast("אנא בחר את קובץ השיעורים.");
         if (!topicsMap) return toast("חובה לטעון קודם את קובץ הנושאים בשלב 1!");
@@ -123,7 +118,9 @@ export default function ImportModal({ onClose, toast }) {
                     if (!topicData) return;
 
                     const ytLinks = extractVideos(content, rawVideo);
-                    const type = ytLinks.length > 0 ? 'link' : 'text';
+                    
+                    // --- תוקן: אם יש לינק יוטיוב, הסוג הוא 'video' ולא 'link' ---
+                    const type = ytLinks.length > 0 ? 'video' : 'text'; 
                     const url = ytLinks.length > 0 ? ytLinks[0] : '';
                     const cleanContent = content.replace(/(<([^>]+)>)/gi, "").trim();
 
@@ -145,7 +142,6 @@ export default function ImportModal({ onClose, toast }) {
                     coursesUpdates[courseId].lessons.push(lesson);
                 });
 
-                // חלוקה לאוטומטי מול ידני
                 const matchedList = [];
                 const unmatchedList = [];
 
@@ -176,7 +172,7 @@ export default function ImportModal({ onClose, toast }) {
                 setAutoMatched(matchedList);
                 setUnmatched(unmatchedList);
                 setImporting(false);
-                setStep(3); // מעבר למסך ההתאמה הידנית
+                setStep(3); 
             },
             error: (error) => {
                 toast("שגיאה בקריאת הקובץ: " + error.message);
@@ -185,14 +181,11 @@ export default function ImportModal({ onClose, toast }) {
         });
     };
 
-    // פעולת ההזרקה האמיתית לאחר שהמשתמש אישר הכל
     const executeImport = async () => {
         setStep(4);
         setImporting(true);
 
         const finalMatches = [...autoMatched];
-        
-        // הוספת הקורסים שהמשתמש שדך ידנית
         unmatched.forEach(u => {
             const selectedDbId = manualMatches[u.wpCourseId];
             if (selectedDbId) {
@@ -216,7 +209,6 @@ export default function ImportModal({ onClose, toast }) {
                 const newLessons = match.lessons.filter(l => !existingIds.includes(l.id));
                 
                 if (newLessons.length > 0) {
-                    // --- מנגנון הביסים (Chunking) למניעת קריסת שרת ---
                     const MAX_LESSONS_PER_UPDATE = 40; 
                     
                     for (let j = 0; j < newLessons.length; j += MAX_LESSONS_PER_UPDATE) {
@@ -226,10 +218,8 @@ export default function ImportModal({ onClose, toast }) {
                             lessons: arrayUnion(...chunk),
                             meetingsCount: existingLessons.length + newLessons.length
                         });
-                        
-                        await delay(500); // מנוחה של חצי שנייה לשרת
+                        await delay(500);
                     }
-
                     successCount += newLessons.length;
                 }
             } catch (err) {
@@ -244,11 +234,55 @@ export default function ImportModal({ onClose, toast }) {
         onClose();
     };
 
+    // --- הפונקציה החדשה לתיקון רטרואקטיבי של כל הקורסים שכבר יובאו! ---
+    const handleFixExistingVideos = async () => {
+        if (!window.confirm("פעולה זו תעבור על כל הקורסים במערכת ותהפוך קישורי יוטיוב לסרטונים מוטמעים. להמשיך?")) return;
+        
+        setImporting(true);
+        try {
+            const coursesRef = collection(db, 'artifacts', appId, 'public', 'data', 'courses');
+            const snap = await getDocs(coursesRef);
+            let fixedCoursesCount = 0;
+            let fixedLessonsCount = 0;
+
+            for (let i = 0; i < snap.docs.length; i++) {
+                const docSnap = snap.docs[i];
+                const data = docSnap.data();
+                if (!data.lessons || data.lessons.length === 0) continue;
+
+                let changed = false;
+                const updatedLessons = data.lessons.map(l => {
+                    // אם השיעור הוגדר כ'link' אבל הוא מכיל יוטיוב או vimeo - נהפוך אותו ל'video'
+                    if (l.type === 'link' && l.url && (l.url.includes('youtube') || l.url.includes('youtu.be') || l.url.includes('vimeo'))) {
+                        changed = true;
+                        fixedLessonsCount++;
+                        return { ...l, type: 'video' };
+                    }
+                    return l;
+                });
+
+                if (changed) {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', docSnap.id), {
+                        lessons: updatedLessons
+                    });
+                    fixedCoursesCount++;
+                    await delay(300); // השהיה קלה לשרת
+                }
+            }
+
+            toast(`✨ תוקן בהצלחה! ${fixedLessonsCount} סרטונים ב-${fixedCoursesCount} קורסים הופכו מקישור להטמעה פנימית.`);
+        } catch (error) {
+            console.error("שגיאה בתיקון הסרטונים:", error);
+            toast("שגיאה בתיקון הסרטונים. נסה שוב.");
+        }
+        setImporting(false);
+    };
+
     return (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-[400]" onClick={onClose}>
             <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl p-10 text-right max-h-[90vh] overflow-hidden flex flex-col" dir="rtl" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-6 border-b pb-4 shrink-0">
-                    <h2 className="text-3xl font-black text-green-600">📥 שחזור היררכיית קורסים</h2>
+                    <h2 className="text-3xl font-black text-green-600">📥 הזרקת סרטונים</h2>
                     <button onClick={onClose} className="text-slate-300 text-4xl hover:text-red-500 transition-colors">&times;</button>
                 </div>
 
@@ -268,6 +302,15 @@ export default function ImportModal({ onClose, toast }) {
                             <button onClick={handlePrepareImport} disabled={!file || !topicsMap} className="w-full bg-slate-900 text-white py-4 rounded-[2rem] font-black text-xl hover:bg-purple-600 transition-all shadow-xl active:scale-95 disabled:opacity-50 mt-4">
                                 סרוק קבצים וזהה קורסים 🔍
                             </button>
+
+                            {/* כפתור הקסם החדש! */}
+                            <div className="pt-8 mt-8 border-t border-slate-200">
+                                <h3 className="font-bold text-slate-800 mb-2">כבר ייבאתם את הכל?</h3>
+                                <button onClick={handleFixExistingVideos} className="w-full bg-blue-50 border-2 border-blue-600 text-blue-700 py-3 rounded-2xl font-black text-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95">
+                                    🛠️ תיקון מהיר: הפוך את כל הקישורים לסרטונים מוטמעים באתר
+                                </button>
+                                <p className="text-xs text-slate-500 mt-2 text-center">לחץ כאן כדי לתקן את בעיית הסרטונים שמוציאים מחוץ לאתר.</p>
+                            </div>
                         </>
                     )}
 
@@ -309,20 +352,12 @@ export default function ImportModal({ onClose, toast }) {
                         </div>
                     )}
 
-                    {(importing && (step === 1 || step === 2)) && (
-                        <div className="text-center py-10">
-                            <p className="font-black text-purple-600 text-xl animate-pulse">מנתח ומפענח את הקבצים...</p>
-                        </div>
-                    )}
-
-                    {step === 4 && (
-                        <div className="bg-green-50 p-6 rounded-2xl border-2 border-green-200 text-center">
-                            <p className="font-black text-green-800 text-xl mb-2">מזריק שיעורים ל-Database...</p>
-                            <p className="text-sm text-green-700 mb-2 font-bold animate-pulse">במידה ויש הרבה שיעורים, השרת נח כדי לא לקרוס.</p>
-                            <p className="text-green-600 font-black text-lg">{progress.current} מתוך {progress.total} קורסים עודכנו!</p>
-                            <div className="w-full bg-green-200 rounded-full h-4 mt-4 overflow-hidden">
-                                <div className="bg-green-600 h-full transition-all duration-300" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}></div>
-                            </div>
+                    {(importing && (step === 1 || step === 2 || step === 4)) && (
+                        <div className="text-center py-10 flex flex-col items-center justify-center">
+                            <div className="text-6xl mb-4 animate-bounce">⚙️</div>
+                            <p className="font-black text-blue-600 text-2xl animate-pulse">מבצע עבודות תחזוקה במסד הנתונים...</p>
+                            <p className="text-slate-500 mt-2 font-bold">נא לא לסגור את החלון, זה ייקח מספר שניות.</p>
+                            {step === 4 && <p className="text-green-600 font-bold mt-4">{progress.current} מתוך {progress.total} טופלו!</p>}
                         </div>
                     )}
                 </div>
