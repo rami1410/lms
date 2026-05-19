@@ -16,18 +16,18 @@ import CompassView from './components/CompassView';
 import SmartCalendarModal from './components/SmartCalendarModal'; 
 import ImportModal from './components/ImportModal';
 import FloatingBot from './components/FloatingBot';
-import LandingPage from './components/LandingPage'; // הייבוא של דף הנחיתה המדהים שלך
-import { onSnapshot, collection, doc } from 'firebase/firestore';
+import LandingPage from './components/LandingPage';
+import { onSnapshot, collection, doc, getDocs, updateDoc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const DEFAULT_MAP_URL = "https://i.postimg.cc/Z5p6mR0H/Gemini-Generated-Image.jpg"; 
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.42"; // עודכן עם דף הנחיתה העוטף
+export const APP_VERSION = "2.50"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
-    const [showLanding, setShowLanding] = useState(true); // קובע האם להציג את דף הנחיתה בהתחלה
+    const [showLanding, setShowLanding] = useState(true); 
     const [lang, setLang] = useState('he');
     const [viewMode, setViewMode] = useState('admin'); 
     
@@ -104,16 +104,64 @@ export default function App() {
         } else { setToast('פרטים שגויים'); }
     };
 
+    // פונקציית תיקון סרטוני יוטיוב הועברה לכאן!
+    const handleFixAllVideos = async () => {
+        if (!window.confirm("פעולה זו תעבור על כל הקורסים במערכת, ותהפוך את הקישורים של יוטיוב להטמעות תקינות (Embed) שלא יקפצו החוצה. להמשיך?")) return;
+        
+        setToast('מתחיל בסריקת ותיקון סרטונים... נא להמתין ולא לסגור את העמוד');
+        try {
+            const coursesRef = collection(db, 'artifacts', appId, 'public', 'data', 'courses');
+            const snap = await getDocs(coursesRef);
+            let fixedCoursesCount = 0;
+            let fixedLessonsCount = 0;
+
+            for (let i = 0; i < snap.docs.length; i++) {
+                const docSnap = snap.docs[i];
+                const data = docSnap.data();
+                
+                if (!data.lessons || data.lessons.length === 0) continue;
+
+                let changed = false;
+                const updatedLessons = data.lessons.map(l => {
+                    if ((l.type === 'link' || l.type === 'video') && l.url) {
+                        const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|embed)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s<>]{11})/i;
+                        const match = l.url.match(ytRegex);
+                        
+                        if (match && match[1]) {
+                            const properEmbedUrl = `https://www.youtube.com/embed/${match[1]}`;
+                            if (l.url !== properEmbedUrl || l.type !== 'video') {
+                                changed = true;
+                                fixedLessonsCount++;
+                                return { ...l, type: 'video', url: properEmbedUrl };
+                            }
+                        }
+                    }
+                    return l;
+                });
+
+                if (changed) {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', docSnap.id), {
+                        lessons: updatedLessons
+                    });
+                    fixedCoursesCount++;
+                }
+            }
+            setToast(`✨ תוקן בהצלחה! ${fixedLessonsCount} סרטונים ב-${fixedCoursesCount} קורסים תוקנו והופכו להטמעה פנימית.`);
+        } catch (error) {
+            console.error("שגיאה בתיקון הסרטונים:", error);
+            setToast("שגיאה בתיקון הסרטונים. נסה שוב.");
+        }
+    };
+
     const currentMapUrl = localInstitutions.find(i => i.id === currentUser?.institutionId)?.mapBackground 
         || localMaps.find(m => m.isDefault)?.url 
         || DEFAULT_MAP_URL;
 
-    // התנאי החדש - אם אין משתמש מחובר, והוא אמור לראות את דף הנחיתה, נציג אותו
+    // הצגת עמוד הנחיתה רק למי שלא מחובר למערכת
     if (!currentUser && showLanding) {
         return <LandingPage onLoginClick={() => setShowLanding(false)} />;
     }
 
-    // מסך ההתחברות וההרשמה (מופיע רק אחרי שלוחצים על "להתחבר" בדף הנחיתה)
     if (!currentUser) return (
         <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center relative" dir={direction}>
             <button 
@@ -135,17 +183,33 @@ export default function App() {
                 activeSection={activeSection} setActiveSection={setActiveSection}
                 setViewingCourse={setViewingCourse} setActiveModal={setActiveModal}
                 t={t} direction={direction} 
-                onLogout={() => { setCurrentUser(null); setShowLanding(true); }} // מוציא אותם בחזרה לדף הנחיתה ביציאה
+                onLogout={() => { setCurrentUser(null); setShowLanding(true); }} // מעביר אותם לעמוד הנחיתה בלחיצה על יציאה
                 LOGO_URL={LOGO_URL}
             />
 
             <main className="p-8 max-w-7xl mx-auto">
                 {viewMode === 'admin' && !viewingCourse && (
-                    <div className="mb-6 flex flex-wrap justify-end gap-4">
+                    <div className="mb-6 flex flex-wrap justify-end gap-3">
+                        
+                        {/* כפתור יצירת קורס ידני (הוחזר!) */}
+                        <button 
+                            onClick={() => setActiveModal({type: 'course', data: null})}
+                            className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-black shadow-sm hover:shadow-lg hover:scale-105 transition-all flex items-center gap-2">
+                            <span>➕ יצירת קורס חדש</span>
+                        </button>
+
+                        {/* כפתור הזרקת קורסים מוורדפרס */}
                         <button 
                             onClick={() => setActiveModal({type: 'import'})}
                             className="bg-white border-2 border-green-500 text-green-600 px-6 py-3 rounded-2xl font-black shadow-sm hover:shadow-lg hover:bg-green-50 hover:scale-105 transition-all flex items-center gap-2">
-                            <span>📥 ייבוא מוורדפרס</span>
+                            <span>📥 שחזור היררכיה</span>
+                        </button>
+
+                        {/* כפתור תיקון סרטוני יוטיוב (הועבר לכאן!) */}
+                        <button 
+                            onClick={handleFixAllVideos}
+                            className="bg-white border-2 border-red-500 text-red-600 px-6 py-3 rounded-2xl font-black shadow-sm hover:shadow-lg hover:bg-red-50 hover:scale-105 transition-all flex items-center gap-2">
+                            <span>🛠️ תיקון סרטוני יוטיוב</span>
                         </button>
 
                         <button 
@@ -160,7 +224,7 @@ export default function App() {
                         <button 
                             onClick={() => setActiveModal({type: 'smart_content'})}
                             className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2">
-                            <span>✨ הוספת תוכן חכם (AI)</span>
+                            <span>✨ תוכן חכם (AI)</span>
                         </button>
                     </div>
                 )}
