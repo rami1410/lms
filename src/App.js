@@ -17,7 +17,7 @@ import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.65"; // הוספת באנר הירו יפה למסך הקורסים
+export const APP_VERSION = "2.66"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -94,7 +94,6 @@ export default function App() {
         } else { setToast('פרטים שגויים'); }
     };
 
-    // מציאת תמונת הרקע של המוסד או שימוש בברירת מחדל יפה
     const currentBannerUrl = localInstitutions.find(i => i.id === currentUser?.institutionId)?.mapBackground 
         || "https://i.postimg.cc/Z5p6mR0H/Gemini-Generated-Image.jpg";
 
@@ -104,12 +103,14 @@ export default function App() {
 
     if (!currentUser) return (
         <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center relative" dir={direction}>
+            {/* כפתור חזרה מודגש וברור עם רקע חצי שקוף ואנימציה */}
             <button 
                 onClick={() => setShowLanding(true)} 
-                className="absolute top-6 right-6 text-white hover:text-purple-400 font-bold flex items-center gap-2 transition"
+                className="absolute top-6 right-6 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-full font-bold flex items-center gap-3 transition-all backdrop-blur-md border border-white/20 shadow-xl z-50 group"
             >
-                <span>&rarr;</span> חזרה לאתר הראשי
+                <span className="text-xl group-hover:translate-x-1 transition-transform">&rarr;</span> חזרה לעמוד הראשי
             </button>
+            
             {!isRegistering ? <Login onLogin={handleLogin} onRegisterToggle={()=>setIsRegistering(true)} lang={lang} setLang={setLang} t={t} /> 
             : <Register onBack={()=>setIsRegistering(false)} institutions={localInstitutions} users={localUsers} toast={setToast} />}
         </div>
@@ -128,25 +129,19 @@ export default function App() {
             />
 
             <main className="p-8 max-w-7xl mx-auto">
-                
-                {/* אזור ההירו (באנר) החדש שיופיע רק כשאנחנו בעמוד הראשי של הקורסים */}
                 {!viewingCourse && activeSection === 'courses' && (
                     <div className="relative w-full h-64 rounded-[3rem] overflow-hidden shadow-xl mb-8 flex items-center justify-between p-10">
-                        {/* תמונת הרקע */}
                         <div 
                             className="absolute inset-0 bg-cover bg-center z-0" 
                             style={{ backgroundImage: `url(${currentBannerUrl})` }}
                         ></div>
-                        {/* שכבת כהות כדי שהטקסט יבלוט */}
                         <div className="absolute inset-0 bg-gradient-to-r from-slate-900/80 to-slate-900/20 z-0"></div>
                         
-                        {/* תוכן הבאנר */}
                         <div className="relative z-10 text-white">
                             <h1 className="text-4xl font-black mb-2">{t('my_courses')}</h1>
                             <p className="text-white/80 font-bold text-lg">בחר את הקורס שברצונך ללמוד או לנהל</p>
                         </div>
 
-                        {/* כפתור יצירת קורס - עבר לתוך הבאנר כדי לחסוך מקום! */}
                         {viewMode === 'admin' && (
                             <div className="relative z-10">
                                 <button 
@@ -160,7 +155,6 @@ export default function App() {
                     </div>
                 )}
 
-                {/* הצגת הקורס עצמו, מצפן או פאנל ניהול (אם נבחרו מהתפריט העליון) */}
                 {viewingCourse ? (
                     <CourseView course={viewingCourse} onBack={() => setViewingCourse(null)} toast={setToast} isAdmin={viewMode === 'admin' || viewMode === 'teacher'} userId={currentUser.id} userProgress={userProgress[viewingCourse.id] || {}} />
                 ) : activeSection === 'compass' ? (
@@ -183,19 +177,15 @@ export default function App() {
                         onEditCourse={(c) => setActiveModal({type:'course', data: c})}
                     />
                 ) : (
-                    // גריד הקורסים בלבד
                     <div className="grid md:grid-cols-3 gap-8">
                         {getVisibleCourses().map(c => {
                             const completed = userProgress[c.id] ? Object.values(userProgress[c.id]).filter(v => v === true).length : 0;
                             const pct = c.lessons?.length ? Math.round((completed / c.lessons.length) * 100) : 0;
                             return (
                                 <div key={c.id} onClick={() => setViewingCourse(c)} className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col items-center group hover:scale-[1.02] hover:shadow-2xl transition-all cursor-pointer">
-                                    
-                                    {/* תמונת הקורס (אם יש) אחרת גרף ההתקדמות */}
                                     {c.image ? (
                                         <div className="w-full h-32 mb-6 rounded-2xl overflow-hidden relative">
                                             <img src={c.image} alt={c.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                                            {/* תגית אחוזים על התמונה */}
                                             <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm text-purple-700 font-black px-3 py-1 rounded-full text-sm shadow-sm">
                                                 {pct}% הושלם
                                             </div>
@@ -209,7 +199,6 @@ export default function App() {
 
                                     <h3 className="font-black text-xl mb-4 text-slate-800 text-center line-clamp-2">{c.name}</h3>
                                     
-                                    {/* הצגת תחומי דעת תחת הקורס */}
                                     {c.fields && c.fields.length > 0 && (
                                         <div className="flex flex-wrap justify-center gap-1 mb-6">
                                             {c.fields.slice(0,3).map(f => <span key={f} className="text-xs bg-slate-100 text-slate-500 font-bold px-2 py-1 rounded-md">{f}</span>)}
