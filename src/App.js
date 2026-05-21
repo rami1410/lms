@@ -17,7 +17,7 @@ import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.60"; // גרסה רזה ומהירה - ללא מפות וייבוא
+export const APP_VERSION = "2.65"; // הוספת באנר הירו יפה למסך הקורסים
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -94,6 +94,10 @@ export default function App() {
         } else { setToast('פרטים שגויים'); }
     };
 
+    // מציאת תמונת הרקע של המוסד או שימוש בברירת מחדל יפה
+    const currentBannerUrl = localInstitutions.find(i => i.id === currentUser?.institutionId)?.mapBackground 
+        || "https://i.postimg.cc/Z5p6mR0H/Gemini-Generated-Image.jpg";
+
     if (!currentUser && showLanding) {
         return <LandingPage onLoginClick={() => setShowLanding(false)} />;
     }
@@ -124,16 +128,39 @@ export default function App() {
             />
 
             <main className="p-8 max-w-7xl mx-auto">
-                {viewMode === 'admin' && !viewingCourse && (
-                    <div className="mb-6 flex flex-wrap justify-end gap-3">
-                        <button 
-                            onClick={() => setActiveModal({type: 'course', data: null})}
-                            className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-black shadow-sm hover:shadow-lg hover:scale-105 transition-all flex items-center gap-2">
-                            <span>➕ יצירת קורס חדש</span>
-                        </button>
+                
+                {/* אזור ההירו (באנר) החדש שיופיע רק כשאנחנו בעמוד הראשי של הקורסים */}
+                {!viewingCourse && activeSection === 'courses' && (
+                    <div className="relative w-full h-64 rounded-[3rem] overflow-hidden shadow-xl mb-8 flex items-center justify-between p-10">
+                        {/* תמונת הרקע */}
+                        <div 
+                            className="absolute inset-0 bg-cover bg-center z-0" 
+                            style={{ backgroundImage: `url(${currentBannerUrl})` }}
+                        ></div>
+                        {/* שכבת כהות כדי שהטקסט יבלוט */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-slate-900/80 to-slate-900/20 z-0"></div>
+                        
+                        {/* תוכן הבאנר */}
+                        <div className="relative z-10 text-white">
+                            <h1 className="text-4xl font-black mb-2">{t('my_courses')}</h1>
+                            <p className="text-white/80 font-bold text-lg">בחר את הקורס שברצונך ללמוד או לנהל</p>
+                        </div>
+
+                        {/* כפתור יצירת קורס - עבר לתוך הבאנר כדי לחסוך מקום! */}
+                        {viewMode === 'admin' && (
+                            <div className="relative z-10">
+                                <button 
+                                    onClick={() => setActiveModal({type: 'course', data: null})}
+                                    className="bg-purple-600 text-white px-8 py-4 rounded-2xl font-black shadow-lg hover:shadow-2xl hover:bg-purple-500 hover:scale-105 transition-all flex items-center gap-3">
+                                    <span className="text-2xl">➕</span>
+                                    <span>יצירת קורס חדש</span>
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 
+                {/* הצגת הקורס עצמו, מצפן או פאנל ניהול (אם נבחרו מהתפריט העליון) */}
                 {viewingCourse ? (
                     <CourseView course={viewingCourse} onBack={() => setViewingCourse(null)} toast={setToast} isAdmin={viewMode === 'admin' || viewMode === 'teacher'} userId={currentUser.id} userProgress={userProgress[viewingCourse.id] || {}} />
                 ) : activeSection === 'compass' ? (
@@ -156,28 +183,45 @@ export default function App() {
                         onEditCourse={(c) => setActiveModal({type:'course', data: c})}
                     />
                 ) : (
-                    <div className="space-y-6 text-right">
-                        <div className="flex justify-between items-center bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
-                            <h1 className="text-3xl font-black text-slate-800">{t('my_courses')}</h1>
-                        </div>
-
-                        <div className="grid md:grid-cols-3 gap-8">
-                            {getVisibleCourses().map(c => {
-                                const completed = userProgress[c.id] ? Object.values(userProgress[c.id]).filter(v => v === true).length : 0;
-                                const pct = c.lessons?.length ? Math.round((completed / c.lessons.length) * 100) : 0;
-                                return (
-                                    <div key={c.id} onClick={() => setViewingCourse(c)} className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col items-center group hover:scale-[1.02] transition-all cursor-pointer">
-                                        <div className="relative w-24 h-24 mb-4">
+                    // גריד הקורסים בלבד
+                    <div className="grid md:grid-cols-3 gap-8">
+                        {getVisibleCourses().map(c => {
+                            const completed = userProgress[c.id] ? Object.values(userProgress[c.id]).filter(v => v === true).length : 0;
+                            const pct = c.lessons?.length ? Math.round((completed / c.lessons.length) * 100) : 0;
+                            return (
+                                <div key={c.id} onClick={() => setViewingCourse(c)} className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col items-center group hover:scale-[1.02] hover:shadow-2xl transition-all cursor-pointer">
+                                    
+                                    {/* תמונת הקורס (אם יש) אחרת גרף ההתקדמות */}
+                                    {c.image ? (
+                                        <div className="w-full h-32 mb-6 rounded-2xl overflow-hidden relative">
+                                            <img src={c.image} alt={c.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                            {/* תגית אחוזים על התמונה */}
+                                            <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm text-purple-700 font-black px-3 py-1 rounded-full text-sm shadow-sm">
+                                                {pct}% הושלם
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="relative w-24 h-24 mb-6">
                                             <svg className="w-full h-full -rotate-90"><circle cx="48" cy="48" r="40" stroke="#f1f5f9" strokeWidth="8" fill="transparent" /><circle cx="48" cy="48" r="40" stroke="#9333ea" strokeWidth="8" fill="transparent" strokeDasharray="251.2" strokeDashoffset={251.2 - (251.2 * pct) / 100} strokeLinecap="round" className="transition-all duration-1000" /></svg>
                                             <div className="absolute inset-0 flex items-center justify-center font-black text-lg text-purple-600">{pct}%</div>
                                         </div>
-                                        <h3 className="font-black text-xl mb-4 text-slate-800 text-center">{c.name}</h3>
-                                        <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black group-hover:bg-purple-600 transition-colors shadow-lg">כניסה לקורס</button>
-                                    </div>
-                                );
-                            })}
-                            {getVisibleCourses().length === 0 && <div className="col-span-3 text-center text-slate-400 font-bold py-10">לא נמצאו קורסים המותאמים למוסד זה.</div>}
-                        </div>
+                                    )}
+
+                                    <h3 className="font-black text-xl mb-4 text-slate-800 text-center line-clamp-2">{c.name}</h3>
+                                    
+                                    {/* הצגת תחומי דעת תחת הקורס */}
+                                    {c.fields && c.fields.length > 0 && (
+                                        <div className="flex flex-wrap justify-center gap-1 mb-6">
+                                            {c.fields.slice(0,3).map(f => <span key={f} className="text-xs bg-slate-100 text-slate-500 font-bold px-2 py-1 rounded-md">{f}</span>)}
+                                            {c.fields.length > 3 && <span className="text-xs bg-slate-100 text-slate-500 font-bold px-2 py-1 rounded-md">+{c.fields.length - 3}</span>}
+                                        </div>
+                                    )}
+
+                                    <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black group-hover:bg-purple-600 transition-colors shadow-lg mt-auto">כניסה לקורס</button>
+                                </div>
+                            );
+                        })}
+                        {getVisibleCourses().length === 0 && <div className="col-span-3 text-center text-slate-400 font-bold py-10">לא נמצאו קורסים המותאמים למוסד זה.</div>}
                     </div>
                 )}
             </main>
