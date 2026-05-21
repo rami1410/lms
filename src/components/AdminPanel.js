@@ -1,161 +1,240 @@
 import React, { useState } from 'react';
 import { db, appId } from '../firebase';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import * as XLSX from 'xlsx';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 export default function AdminPanel({ users, institutions, courses, toast, isAdmin, onEditUser, onEditInst, onEditCourse }) {
-    const [filters, setFilters] = useState({});
+    const [activeTab, setActiveTab] = useState('courses');
+    const [searchTerm, setSearchTerm] = useState('');
+    
+    // הגדרת ברירת מחדל למיון - כרגע לפי יצירה
+    const [sortConfig, setSortConfig] = useState({ key: '', direction: '' });
 
-    const handleFilter = (col, val) => setFilters({...filters, [col]: val.toLowerCase()});
+    // פונקציית המיון עם הלוגיקה של החצים
+    const handleSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
 
-    const filteredInst = institutions.filter(i => 
-        (!filters.instName || i.name.toLowerCase().includes(filters.instName)) &&
-        (!filters.instPrefix || i.prefix.toLowerCase().includes(filters.instPrefix))
-    );
+    // רכיב גרפי לחצים (למעלה/למטה/רגיל)
+    const SortIcon = ({ columnKey }) => {
+        if (sortConfig.key !== columnKey) return <span className="text-slate-300 ml-2 text-xs">↕</span>;
+        return sortConfig.direction === 'asc' ? <span className="text-purple-600 ml-2 text-xs font-black">↑</span> : <span className="text-purple-600 ml-2 text-xs font-black">↓</span>;
+    };
 
-    const filteredUsers = users.filter(u => 
-        (!filters.userName || (u.firstName + ' ' + u.lastName).toLowerCase().includes(filters.userName)) &&
-        (!filters.userRole || u.role.toLowerCase().includes(filters.userRole))
-    );
-
-    // סינון קורסים
-    const filteredCourses = courses?.filter(c => 
-        (!filters.courseName || c.name.toLowerCase().includes(filters.courseName))
-    ) || [];
-
-    const toggleRole = async (user) => {
-        if (!isAdmin) return;
-        const newRole = user.role === 'teacher' ? 'student' : 'teacher';
+    // פונקציית שכפול הקורס
+    const handleDuplicateCourse = async (course) => {
+        if (!window.confirm(`האם אתה בטוח שברצונך לשכפל את הקורס "${course.name}"?`)) return;
         try {
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.id), { role: newRole });
-            toast(`המשתמש הוגדר כ${newRole === 'teacher' ? 'מורה' : 'תלמיד'}`);
-        } catch (e) { toast("שגיאה בעדכון תפקיד"); }
+            // יצירת מזהה חדש לחלוטין כדי לא לדרוס
+            const newId = `course-${Date.now()}`;
+            const courseCopy = { 
+                ...course, 
+                name: `${course.name} - עותק`, 
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            
+            // מוחקים את המזהה הישן מתוך המידע כדי שיהיה נקי
+            delete courseCopy.id; 
+            
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', newId), courseCopy);
+            toast('הקורס שוכפל בהצלחה!');
+        } catch (err) {
+            console.error(err);
+            toast('שגיאה בשכפול הקורס.');
+        }
     };
 
-    const exportToExcel = () => {
-        const data = users.map(u => ({
-            "שם פרטי": u.firstName,
-            "שם משפחה": u.lastName,
-            "שם משתמש": u.username,
-            "סיסמה": u.password,
-            "מוסד": institutions.find(i => i.id === u.institutionId)?.name || "לא משויך"
-        }));
-        const ws = XLSX.utils.json_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Students");
-        XLSX.writeFile(wb, "Student_List.xlsx");
-        toast("הקובץ מוכן להורדה!");
+    // פונקציית מחיקת קורס (רק למנהל)
+    const handleDeleteCourse = async (courseId, courseName) => {
+        if (!window.confirm(`אזהרה! מחיקת הקורס "${courseName}" היא סופית. האם להמשיך?`)) return;
+        try {
+            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', courseId));
+            toast('הקורס נמחק בהצלחה.');
+        } catch (err) {
+            console.error(err);
+            toast('שגיאה במחיקת הקורס.');
+        }
     };
 
-    const SearchInput = ({ col, placeholder }) => (
-        <div className="relative mt-2">
-            <span className="absolute right-3 top-2.5 text-slate-300 text-xs">🔍</span>
-            <input 
-                className="w-full p-2 pr-8 bg-slate-50 border rounded-lg text-[10px] font-bold outline-none focus:border-purple-400"
-                placeholder={placeholder}
-                onChange={(e) => handleFilter(col, e.target.value)}
-            />
-        </div>
+    // --- מערכת הסינון והמיון לקורסים ---
+    let filteredCourses = courses.filter(c => c.name?.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    if (sortConfig.key) {
+        filteredCourses.sort((a, b) => {
+            let aVal = a[sortConfig.key];
+            let bVal = b[sortConfig.key];
+
+            // מיון מיוחד לעמודת כמות שיעורים
+            if (sortConfig.key === 'lessonsCount') {
+                aVal = a.lessons?.length || 0;
+                bVal = b.lessons?.length || 0;
+            }
+            
+            // מיון מיוחד למוסדות
+            if (sortConfig.key === 'institutions') {
+                aVal = a.assignedInstitutions?.length || 0;
+                bVal = b.assignedInstitutions?.length || 0;
+            }
+
+            if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
+
+    // סינון משתמשים
+    let filteredUsers = users.filter(u => 
+        u.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        u.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        u.username?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    // סינון מוסדות
+    let filteredInsts = institutions.filter(i => 
+        i.name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (
-        <div className="space-y-12 text-right" dir="rtl">
+        <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 p-8" dir="rtl">
             
-            {/* טבלת ניהול קורסים חדשה */}
-            {isAdmin && (
-                <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
-                    <h2 className="text-2xl font-black mb-6 text-purple-600">ניהול קורסים</h2>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-xs font-bold">
-                            <thead>
-                                <tr className="border-b text-slate-400">
-                                    <th className="p-4 text-right w-1/4">שם הקורס <SearchInput col="courseName" placeholder="חפש קורס..." /></th>
-                                    <th className="p-4 text-right">סוג</th>
-                                    <th className="p-4 text-right">תחומי לימוד</th>
-                                    <th className="p-4 text-right">גילאים</th>
-                                    <th className="p-4 text-right">פעולות</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredCourses.map(c => (
-                                    <tr key={c.id} className="border-b hover:bg-slate-50 transition-colors">
-                                        <td className="p-4"><button onClick={() => onEditCourse(c)} className="text-purple-600 hover:underline text-lg font-black">{c.name}</button></td>
-                                        <td className="p-4">{c.type}</td>
-                                        <td className="p-4">{c.fields?.join(', ')}</td>
-                                        <td className="p-4 text-slate-500">כיתות {c.fromGrade} - {c.toGrade}</td>
-                                        <td className="p-4"><button onClick={async () => { if(window.confirm("בטוח שברצונך למחוק קורס זה?")) await deleteDoc(doc(db,'artifacts',appId,'public','data','courses',c.id)) }} className="text-red-400 hover:text-red-600">מחק</button></td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            )}
+            {/* תפריט לשוניות עליון */}
+            <div className="flex flex-wrap gap-4 border-b-2 border-slate-100 pb-4 mb-8">
+                <button onClick={() => {setActiveTab('courses'); setSearchTerm('');}} className={`px-6 py-3 rounded-2xl font-black transition-all ${activeTab === 'courses' ? 'bg-purple-100 text-purple-700' : 'text-slate-500 hover:bg-slate-50'}`}>📚 ניהול קורסים</button>
+                {isAdmin && <button onClick={() => {setActiveTab('users'); setSearchTerm('');}} className={`px-6 py-3 rounded-2xl font-black transition-all ${activeTab === 'users' ? 'bg-purple-100 text-purple-700' : 'text-slate-500 hover:bg-slate-50'}`}>👥 ניהול משתמשים</button>}
+                {isAdmin && <button onClick={() => {setActiveTab('insts'); setSearchTerm('');}} className={`px-6 py-3 rounded-2xl font-black transition-all ${activeTab === 'insts' ? 'bg-purple-100 text-purple-700' : 'text-slate-500 hover:bg-slate-50'}`}>🏫 ניהול מוסדות</button>}
+            </div>
 
-            {/* טבלת ניהול מוסדות */}
-            {isAdmin && (
-                <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
-                    <h2 className="text-2xl font-black mb-6 text-blue-600">ניהול מוסדות</h2>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-xs font-bold">
-                            <thead>
-                                <tr className="border-b text-slate-400">
-                                    <th className="p-4 text-right">סמל</th>
-                                    <th className="p-4 text-right w-1/4">שם המוסד <SearchInput col="instName" placeholder="חפש מוסד..." /></th>
-                                    <th className="p-4 text-right">מזהה <SearchInput col="instPrefix" placeholder="חפש מזהה..." /></th>
-                                    <th className="p-4 text-right">תוקף</th>
-                                    <th className="p-4 text-right">פעולות</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredInst.map(inst => (
-                                    <tr key={inst.id} className="border-b hover:bg-slate-50 transition-colors">
-                                        <td className="p-4 text-xl">{inst.symbol || '🏫'}</td>
-                                        <td className="p-4"><button onClick={() => onEditInst(inst)} className="text-blue-600 hover:underline text-lg font-black">{inst.name}</button></td>
-                                        <td className="p-4 uppercase text-slate-400 font-mono">{inst.prefix}</td>
-                                        <td className={`p-4 ${new Date(inst.expiryDate) < new Date() ? 'text-red-500' : 'text-emerald-500'}`}>{inst.expiryDate}</td>
-                                        <td className="p-4"><button onClick={async () => { if(window.confirm("מחק?")) await deleteDoc(doc(db,'artifacts',appId,'public','data','institutions',inst.id)) }} className="text-red-400 hover:text-red-600">מחק</button></td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            )}
-
-            {/* טבלת ניהול משתמשים */}
-            <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-black text-emerald-600">{isAdmin ? 'כל המשתמשים' : 'תלמידי המוסד שלי'}</h2>
-                    <button onClick={exportToExcel} className="bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-md hover:bg-emerald-700 transition-colors">📥 ייצוא לאקסל (למורה)</button>
+            {/* סרגל כלים - חיפוש חי */}
+            <div className="flex justify-between items-center mb-6">
+                <div className="relative w-full max-w-md">
+                    <input 
+                        type="text" 
+                        placeholder="חיפוש חופשי (מסתנן אוטומטית)..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full bg-slate-50 border-2 border-slate-200 pl-4 pr-12 py-3 rounded-2xl outline-none focus:border-purple-500 font-bold transition-all"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xl">🔍</span>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-xs font-bold">
+            </div>
+
+            {/* טבלאות */}
+            <div className="overflow-x-auto">
+                {activeTab === 'courses' && (
+                    <table className="w-full text-right border-collapse">
                         <thead>
-                            <tr className="border-b text-slate-400">
-                                <th className="p-4 text-right w-1/4">שם <SearchInput col="userName" placeholder="חפש שם..." /></th>
-                                <th className="p-4 text-right">שם משתמש</th>
-                                <th className="p-4 text-right">תפקיד <SearchInput col="userRole" placeholder="מורה/תלמיד..." /></th>
-                                <th className="p-4 text-right">פעולות</th>
+                            <tr className="bg-slate-50 text-slate-500 rounded-2xl">
+                                <th className="p-4 font-black cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort('name')}>שם הקורס <SortIcon columnKey="name" /></th>
+                                <th className="p-4 font-black cursor-pointer hover:bg-slate-100 transition-colors text-center select-none" onClick={() => handleSort('lessonsCount')}>כמות שיעורים <SortIcon columnKey="lessonsCount" /></th>
+                                <th className="p-4 font-black cursor-pointer hover:bg-slate-100 transition-colors text-center select-none" onClick={() => handleSort('fromGrade')}>שכבות גיל <SortIcon columnKey="fromGrade" /></th>
+                                <th className="p-4 font-black">תחומי דעת</th>
+                                <th className="p-4 font-black cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort('institutions')}>מוסדות מורשים <SortIcon columnKey="institutions" /></th>
+                                <th className="p-4 font-black text-center">פעולות</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredCourses.map((c, idx) => (
+                                <tr key={c.id} className={`border-b border-slate-50 hover:bg-purple-50/30 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                                    <td className="p-4 font-bold text-slate-800">{c.name}</td>
+                                    
+                                    {/* עמודת כמות שיעורים החדשה */}
+                                    <td className="p-4 font-bold text-slate-600 text-center">
+                                        <span className={`px-3 py-1 rounded-full ${c.lessons?.length > 0 ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                                            {c.lessons?.length || 0} שיעורים
+                                        </span>
+                                    </td>
+
+                                    <td className="p-4 text-slate-600 text-center font-medium" dir="ltr">{c.fromGrade} - {c.toGrade}</td>
+                                    <td className="p-4">
+                                        <div className="flex flex-wrap gap-1">
+                                            {c.fields?.map(f => <span key={f} className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-md font-bold">{f}</span>)}
+                                        </div>
+                                    </td>
+                                    <td className="p-4">
+                                        {c.assignedInstitutions?.length > 0 
+                                            ? <div className="text-xs font-bold text-slate-500 max-w-[150px] truncate">{c.assignedInstitutions.map(id => institutions.find(i => i.id === id)?.name).filter(Boolean).join(', ')}</div>
+                                            : <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-md font-bold">פתוח לכולם</span>
+                                        }
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <div className="flex justify-center gap-2">
+                                            <button onClick={() => onEditCourse(c)} className="bg-blue-100 text-blue-600 px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-blue-200 transition-colors">עריכה</button>
+                                            
+                                            {/* כפתור שכפול החדש */}
+                                            <button onClick={() => handleDuplicateCourse(c)} className="bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-slate-300 transition-colors">שכפל</button>
+                                            
+                                            {isAdmin && (
+                                                <button onClick={() => handleDeleteCourse(c.id, c.name)} className="bg-red-100 text-red-600 px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-red-200 transition-colors">מחק</button>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                            {filteredCourses.length === 0 && <tr><td colSpan="6" className="text-center p-8 text-slate-400 font-bold">לא נמצאו תוצאות לחיפוש "{searchTerm}".</td></tr>}
+                        </tbody>
+                    </table>
+                )}
+
+                {/* טבלאות המשתמשים */}
+                {activeTab === 'users' && (
+                    <table className="w-full text-right border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50 text-slate-500 rounded-2xl">
+                                <th className="p-4 font-black">שם מלא</th>
+                                <th className="p-4 font-black">שם משתמש</th>
+                                <th className="p-4 font-black">תפקיד</th>
+                                <th className="p-4 font-black">מוסד מקושר</th>
+                                <th className="p-4 font-black text-center">פעולות</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredUsers.map(u => (
-                                <tr key={u.id} className="border-b hover:bg-slate-50 transition-colors">
-                                    <td className="p-4"><button onClick={() => onEditUser(u)} className="text-emerald-600 hover:underline text-lg font-black">{u.firstName} {u.lastName}</button></td>
-                                    <td className="p-4 font-mono">{u.username}</td>
-                                    <td className="p-4">
-                                        <button onClick={() => toggleRole(u)} className={`px-3 py-1 rounded-full text-[10px] ${u.role === 'teacher' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
-                                            {u.role === 'teacher' ? 'מורה' : 'תלמיד'} {isAdmin && '🔄'}
-                                        </button>
+                                <tr key={u.id} className="border-b border-slate-50 hover:bg-purple-50/30 transition-colors">
+                                    <td className="p-4 font-bold text-slate-800">{u.firstName} {u.lastName}</td>
+                                    <td className="p-4 font-mono text-slate-500">{u.username}</td>
+                                    <td className="p-4 font-bold text-slate-600">{u.role === 'admin' ? 'מנהל' : u.role === 'teacher' ? 'מורה' : 'תלמיד'}</td>
+                                    <td className="p-4 font-bold text-slate-500">{institutions.find(i => i.id === u.institutionId)?.name || 'ללא'}</td>
+                                    <td className="p-4 text-center">
+                                        <button onClick={() => onEditUser(u)} className="bg-blue-100 text-blue-600 px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-blue-200 transition-colors">עריכה</button>
                                     </td>
-                                    <td className="p-4"><button onClick={async () => { if(window.confirm("מחק?")) await deleteDoc(doc(db,'artifacts',appId,'public','data','users',u.id)) }} className="text-red-400 hover:text-red-600">מחק</button></td>
                                 </tr>
                             ))}
+                            {filteredUsers.length === 0 && <tr><td colSpan="5" className="text-center p-8 text-slate-400 font-bold">לא נמצאו תוצאות.</td></tr>}
                         </tbody>
                     </table>
-                </div>
-            </section>
+                )}
+
+                {/* טבלת מוסדות */}
+                {activeTab === 'insts' && (
+                    <table className="w-full text-right border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50 text-slate-500 rounded-2xl">
+                                <th className="p-4 font-black">שם המוסד</th>
+                                <th className="p-4 font-black">סוג</th>
+                                <th className="p-4 font-black">תוקף הרשאה</th>
+                                <th className="p-4 font-black text-center">פעולות</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredInsts.map(i => (
+                                <tr key={i.id} className="border-b border-slate-50 hover:bg-purple-50/30 transition-colors">
+                                    <td className="p-4 font-bold text-slate-800">{i.name}</td>
+                                    <td className="p-4 font-bold text-slate-600">{i.type}</td>
+                                    <td className="p-4 font-bold text-slate-500" dir="ltr">{i.expiryDate || 'ללא הגבלה'}</td>
+                                    <td className="p-4 text-center">
+                                        <button onClick={() => onEditInst(i)} className="bg-blue-100 text-blue-600 px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-blue-200 transition-colors">עריכה</button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {filteredInsts.length === 0 && <tr><td colSpan="4" className="text-center p-8 text-slate-400 font-bold">לא נמצאו תוצאות.</td></tr>}
+                        </tbody>
+                    </table>
+                )}
+            </div>
         </div>
     );
 }
