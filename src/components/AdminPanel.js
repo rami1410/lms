@@ -16,7 +16,6 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
         setSortConfig({ key, direction });
     };
 
-    // הנה הפונקציה שעשתה בעיות, עכשיו אנחנו קוראים לה בתוך ה-HTML למטה!
     const SortIcon = ({ columnKey }) => {
         if (sortConfig.key !== columnKey) return <span className="text-slate-300 ml-2 text-xs">↕</span>;
         return sortConfig.direction === 'asc' ? <span className="text-purple-600 ml-2 text-xs font-black">↑</span> : <span className="text-purple-600 ml-2 text-xs font-black">↓</span>;
@@ -54,6 +53,7 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
         }
     };
 
+    // הגדרה אחת ויחידה של filteredCourses
     let filteredCourses = courses.filter(c => c.name?.toLowerCase().includes(searchTerm.toLowerCase()));
     
     if (sortConfig.key) {
@@ -114,7 +114,6 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
                     <table className="w-full text-right border-collapse">
                         <thead>
                             <tr className="bg-slate-50 text-slate-500 rounded-2xl">
-                                {/* כאן אנחנו קוראים ל-SortIcon כדי ש-Vercel לא יזרוק שגיאה! */}
                                 <th className="p-4 font-black cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort('name')}>
                                     שם הקורס <SortIcon columnKey="name" />
                                 </th>
