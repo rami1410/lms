@@ -6,10 +6,8 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
     const [activeTab, setActiveTab] = useState('courses');
     const [searchTerm, setSearchTerm] = useState('');
     
-    // הגדרת ברירת מחדל למיון - כרגע לפי יצירה
     const [sortConfig, setSortConfig] = useState({ key: '', direction: '' });
 
-    // פונקציית המיון עם הלוגיקה של החצים
     const handleSort = (key) => {
         let direction = 'asc';
         if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -18,17 +16,15 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
         setSortConfig({ key, direction });
     };
 
-    // רכיב גרפי לחצים (למעלה/למטה/רגיל)
+    // הנה הפונקציה שעשתה בעיות, עכשיו אנחנו קוראים לה בתוך ה-HTML למטה!
     const SortIcon = ({ columnKey }) => {
         if (sortConfig.key !== columnKey) return <span className="text-slate-300 ml-2 text-xs">↕</span>;
         return sortConfig.direction === 'asc' ? <span className="text-purple-600 ml-2 text-xs font-black">↑</span> : <span className="text-purple-600 ml-2 text-xs font-black">↓</span>;
     };
 
-    // פונקציית שכפול הקורס
     const handleDuplicateCourse = async (course) => {
         if (!window.confirm(`האם אתה בטוח שברצונך לשכפל את הקורס "${course.name}"?`)) return;
         try {
-            // יצירת מזהה חדש לחלוטין כדי לא לדרוס
             const newId = `course-${Date.now()}`;
             const courseCopy = { 
                 ...course, 
@@ -37,7 +33,6 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
                 updatedAt: new Date().toISOString()
             };
             
-            // מוחקים את המזהה הישן מתוך המידע כדי שיהיה נקי
             delete courseCopy.id; 
             
             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', newId), courseCopy);
@@ -48,7 +43,6 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
         }
     };
 
-    // פונקציית מחיקת קורס (רק למנהל)
     const handleDeleteCourse = async (courseId, courseName) => {
         if (!window.confirm(`אזהרה! מחיקת הקורס "${courseName}" היא סופית. האם להמשיך?`)) return;
         try {
@@ -60,7 +54,6 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
         }
     };
 
-    // --- מערכת הסינון והמיון לקורסים ---
     let filteredCourses = courses.filter(c => c.name?.toLowerCase().includes(searchTerm.toLowerCase()));
     
     if (sortConfig.key) {
@@ -68,13 +61,11 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
             let aVal = a[sortConfig.key];
             let bVal = b[sortConfig.key];
 
-            // מיון מיוחד לעמודת כמות שיעורים
             if (sortConfig.key === 'lessonsCount') {
                 aVal = a.lessons?.length || 0;
                 bVal = b.lessons?.length || 0;
             }
             
-            // מיון מיוחד למוסדות
             if (sortConfig.key === 'institutions') {
                 aVal = a.assignedInstitutions?.length || 0;
                 bVal = b.assignedInstitutions?.length || 0;
@@ -86,14 +77,12 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
         });
     }
 
-    // סינון משתמשים
     let filteredUsers = users.filter(u => 
         u.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
         u.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
         u.username?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // סינון מוסדות
     let filteredInsts = institutions.filter(i => 
         i.name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -101,14 +90,12 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
     return (
         <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 p-8" dir="rtl">
             
-            {/* תפריט לשוניות עליון */}
             <div className="flex flex-wrap gap-4 border-b-2 border-slate-100 pb-4 mb-8">
                 <button onClick={() => {setActiveTab('courses'); setSearchTerm('');}} className={`px-6 py-3 rounded-2xl font-black transition-all ${activeTab === 'courses' ? 'bg-purple-100 text-purple-700' : 'text-slate-500 hover:bg-slate-50'}`}>📚 ניהול קורסים</button>
                 {isAdmin && <button onClick={() => {setActiveTab('users'); setSearchTerm('');}} className={`px-6 py-3 rounded-2xl font-black transition-all ${activeTab === 'users' ? 'bg-purple-100 text-purple-700' : 'text-slate-500 hover:bg-slate-50'}`}>👥 ניהול משתמשים</button>}
                 {isAdmin && <button onClick={() => {setActiveTab('insts'); setSearchTerm('');}} className={`px-6 py-3 rounded-2xl font-black transition-all ${activeTab === 'insts' ? 'bg-purple-100 text-purple-700' : 'text-slate-500 hover:bg-slate-50'}`}>🏫 ניהול מוסדות</button>}
             </div>
 
-            {/* סרגל כלים - חיפוש חי */}
             <div className="flex justify-between items-center mb-6">
                 <div className="relative w-full max-w-md">
                     <input 
@@ -122,17 +109,25 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
                 </div>
             </div>
 
-            {/* טבלאות */}
             <div className="overflow-x-auto">
                 {activeTab === 'courses' && (
                     <table className="w-full text-right border-collapse">
                         <thead>
                             <tr className="bg-slate-50 text-slate-500 rounded-2xl">
-                                <th className="p-4 font-black cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort('name')}>שם הקורס <SortIcon columnKey="name" /></th>
-                                <th className="p-4 font-black cursor-pointer hover:bg-slate-100 transition-colors text-center select-none" onClick={() => handleSort('lessonsCount')}>כמות שיעורים <SortIcon columnKey="lessonsCount" /></th>
-                                <th className="p-4 font-black cursor-pointer hover:bg-slate-100 transition-colors text-center select-none" onClick={() => handleSort('fromGrade')}>שכבות גיל <SortIcon columnKey="fromGrade" /></th>
+                                {/* כאן אנחנו קוראים ל-SortIcon כדי ש-Vercel לא יזרוק שגיאה! */}
+                                <th className="p-4 font-black cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort('name')}>
+                                    שם הקורס <SortIcon columnKey="name" />
+                                </th>
+                                <th className="p-4 font-black cursor-pointer hover:bg-slate-100 transition-colors text-center select-none" onClick={() => handleSort('lessonsCount')}>
+                                    כמות שיעורים <SortIcon columnKey="lessonsCount" />
+                                </th>
+                                <th className="p-4 font-black cursor-pointer hover:bg-slate-100 transition-colors text-center select-none" onClick={() => handleSort('fromGrade')}>
+                                    שכבות גיל <SortIcon columnKey="fromGrade" />
+                                </th>
                                 <th className="p-4 font-black">תחומי דעת</th>
-                                <th className="p-4 font-black cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort('institutions')}>מוסדות מורשים <SortIcon columnKey="institutions" /></th>
+                                <th className="p-4 font-black cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort('institutions')}>
+                                    מוסדות מורשים <SortIcon columnKey="institutions" />
+                                </th>
                                 <th className="p-4 font-black text-center">פעולות</th>
                             </tr>
                         </thead>
@@ -141,7 +136,6 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
                                 <tr key={c.id} className={`border-b border-slate-50 hover:bg-purple-50/30 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
                                     <td className="p-4 font-bold text-slate-800">{c.name}</td>
                                     
-                                    {/* עמודת כמות שיעורים החדשה */}
                                     <td className="p-4 font-bold text-slate-600 text-center">
                                         <span className={`px-3 py-1 rounded-full ${c.lessons?.length > 0 ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
                                             {c.lessons?.length || 0} שיעורים
@@ -164,7 +158,6 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
                                         <div className="flex justify-center gap-2">
                                             <button onClick={() => onEditCourse(c)} className="bg-blue-100 text-blue-600 px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-blue-200 transition-colors">עריכה</button>
                                             
-                                            {/* כפתור שכפול החדש */}
                                             <button onClick={() => handleDuplicateCourse(c)} className="bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-slate-300 transition-colors">שכפל</button>
                                             
                                             {isAdmin && (
@@ -179,7 +172,6 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
                     </table>
                 )}
 
-                {/* טבלאות המשתמשים */}
                 {activeTab === 'users' && (
                     <table className="w-full text-right border-collapse">
                         <thead>
@@ -208,7 +200,6 @@ export default function AdminPanel({ users, institutions, courses, toast, isAdmi
                     </table>
                 )}
 
-                {/* טבלת מוסדות */}
                 {activeTab === 'insts' && (
                     <table className="w-full text-right border-collapse">
                         <thead>
