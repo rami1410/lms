@@ -17,7 +17,7 @@ import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.66"; 
+export const APP_VERSION = "2.68"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -103,12 +103,13 @@ export default function App() {
 
     if (!currentUser) return (
         <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center relative" dir={direction}>
-            {/* כפתור חזרה מודגש וברור עם רקע חצי שקוף ואנימציה */}
+            
+            {/* כפתור החזרה שעודכן להיות כהה ויציב */}
             <button 
                 onClick={() => setShowLanding(true)} 
-                className="absolute top-6 right-6 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-full font-bold flex items-center gap-3 transition-all backdrop-blur-md border border-white/20 shadow-xl z-50 group"
+                className="absolute top-6 right-6 bg-slate-900/60 hover:bg-slate-900/90 text-white px-6 py-2 rounded-full font-bold flex items-center gap-2 backdrop-blur-md transition-colors shadow-lg z-50 border border-slate-700/50"
             >
-                <span className="text-xl group-hover:translate-x-1 transition-transform">&rarr;</span> חזרה לעמוד הראשי
+                <span>&rarr;</span> חזרה לעמוד הראשי
             </button>
             
             {!isRegistering ? <Login onLogin={handleLogin} onRegisterToggle={()=>setIsRegistering(true)} lang={lang} setLang={setLang} t={t} /> 
