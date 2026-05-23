@@ -11,7 +11,6 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
         );
     }
 
-    // אם זה פרק, אין לו תוכן ממשי, אז נציג הודעה פשוטה
     if (activeLesson.type === 'chapter') {
         return (
             <div className="max-w-3xl mx-auto mt-20 text-center animate-fade-in">
@@ -39,7 +38,6 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
         );
     }
 
-    // עבור שיעורים רגילים:
     return (
         <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
             {isEditMode ? (
@@ -95,7 +93,40 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
                         {activeLesson.type === 'html' ? (
                             <div className="bg-white p-4 rounded-3xl border shadow-sm" dangerouslySetInnerHTML={{ __html: activeLesson.content }} />
                         ) : activeLesson.type === 'video' && (activeLesson.embedUrl || activeLesson.url) ? (
-                            <iframe title="v" className="w-full aspect-video rounded-3xl shadow-xl border" src={(activeLesson.embedUrl || activeLesson.url).replace('watch?v=', 'embed/')} allowFullScreen />
+                            (() => {
+                                let rawUrl = activeLesson.embedUrl || activeLesson.url;
+                                let cleanUrl = rawUrl;
+                                
+                                // זיהוי חכם של יוטיוב ובידוד הסרטון
+                                if (rawUrl.includes('youtube.com') || rawUrl.includes('youtu.be')) {
+                                    let vidId = '';
+                                    if (rawUrl.includes('watch?v=')) vidId = rawUrl.split('watch?v=')[1].split('&')[0];
+                                    else if (rawUrl.includes('youtu.be/')) vidId = rawUrl.split('youtu.be/')[1].split('?')[0];
+                                    else if (rawUrl.includes('embed/')) vidId = rawUrl.split('embed/')[1].split('?')[0];
+                                    
+                                    if (vidId) {
+                                        // ניקוי מוחלט של מיתוג יוטיוב וסרטונים קשורים
+                                        cleanUrl = `https://www.youtube-nocookie.com/embed/${vidId}?rel=0&modestbranding=1&showinfo=0&controls=1&disablekb=1&playsinline=1`;
+                                    }
+                                } else {
+                                    cleanUrl = rawUrl.replace('watch?v=', 'embed/');
+                                }
+
+                                return (
+                                    <div className="relative w-full aspect-video rounded-3xl shadow-xl border overflow-hidden bg-black">
+                                        {/* Sandbox חוסם פתיחה של חלונות קופצים או טאבים חדשים (כמו לחיצה על יוטיוב) */}
+                                        <iframe 
+                                            title="video-player" 
+                                            className="w-full h-full" 
+                                            src={cleanUrl} 
+                                            sandbox="allow-scripts allow-same-origin allow-presentation" 
+                                            allowFullScreen 
+                                        />
+                                        {/* שכבת מגן שקופה שמונעת קליק על כותרת הסרטון למעלה */}
+                                        <div className="absolute top-0 left-0 w-full h-16 bg-transparent z-10" title="וידאו מאובטח"></div>
+                                    </div>
+                                );
+                            })()
                         ) : activeLesson.type === 'link' ? (
                             <div className="bg-slate-50 p-12 rounded-3xl border-2 border-dashed flex flex-col items-center justify-center text-center">
                                 <span className="text-6xl mb-4">🔗</span>
