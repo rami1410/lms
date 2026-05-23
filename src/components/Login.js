@@ -13,26 +13,17 @@ export default function Login({ onLogin, onRegisterToggle, lang, setLang, t }) {
     return (
         <div className="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md flex flex-col items-center relative z-10">
             
-            {/* כפתורי השפה קבועים, לא מחליפים מקום והלחוץ בשחור */}
-            <div className="flex gap-2 mb-8 bg-slate-100 p-1 rounded-full" dir="ltr">
-                <button
-                    onClick={() => setLang('en')}
-                    className={`px-4 py-2 rounded-full font-bold text-sm transition-colors ${lang === 'en' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-white hover:text-slate-900'}`}
-                >
-                    English
-                </button>
-                <button
-                    onClick={() => setLang('he')}
-                    className={`px-4 py-2 rounded-full font-bold text-sm transition-colors ${lang === 'he' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-white hover:text-slate-900'}`}
-                >
-                    עברית
-                </button>
-                <button
-                    onClick={() => setLang('ar')}
-                    className={`px-4 py-2 rounded-full font-bold text-sm transition-colors ${lang === 'ar' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-white hover:text-slate-900'}`}
-                >
-                    العربية
-                </button>
+            {/* כפתורי השפות כולל רוסית */}
+            <div className="flex gap-2 mb-8 bg-slate-100 p-1 rounded-full flex-wrap justify-center" dir="ltr">
+                {['en', 'he', 'ar', 'ru'].map(l => (
+                    <button
+                        key={l}
+                        onClick={() => setLang(l)}
+                        className={`px-4 py-2 rounded-full font-bold text-sm transition-colors ${lang === l ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-white hover:text-slate-900'}`}
+                    >
+                        {l === 'en' ? 'English' : l === 'he' ? 'עברית' : l === 'ar' ? 'العربية' : 'Русский'}
+                    </button>
+                ))}
             </div>
 
             <img src={LOGO_URL} alt="Logo" className="h-20 mb-6" />
