@@ -24,6 +24,10 @@ export default function Register({ onBack, institutions, users, toast, t, lang }
         setIsSaving(true);
         const newUserId = `user-${Date.now()}`;
         
+        // מנגנון אישור חכם לפי סוג המוסד
+        const inst = institutions.find(i => i.id === institutionId);
+        const autoApprove = inst?.type === 'פנימי';
+        
         try {
             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', newUserId), {
                 firstName,
@@ -32,9 +36,15 @@ export default function Register({ onBack, institutions, users, toast, t, lang }
                 password,
                 institutionId,
                 role: 'student',
+                status: autoApprove ? 'approved' : 'pending',
                 createdAt: new Date().toISOString()
             });
-            toast(lang === 'he' ? 'נרשמת בהצלחה! כעת תוכל להתחבר' : 'Registered successfully! Please login');
+            
+            if (autoApprove) {
+                toast(lang === 'he' ? 'נרשמת בהצלחה! כעת תוכל להתחבר' : 'Registered successfully! Please login');
+            } else {
+                toast(lang === 'he' ? 'נרשמת בהצלחה! החשבון ממתין לאישור מנהל.' : 'Registered! Pending admin approval.');
+            }
             onBack();
         } catch (error) {
             console.error(error);
@@ -66,7 +76,7 @@ export default function Register({ onBack, institutions, users, toast, t, lang }
                     ))}
                 </select>
 
-                <button type="submit" disabled={isSaving} className="w-full bg-purple-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-purple-700 transition-colors shadow-xl mt-4 disabled:opacity-50">
+                <button type="submit" disabled={isSaving} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-lg hover:bg-purple-600 transition-colors shadow-xl mt-4 disabled:opacity-50">
                     {isSaving ? '...' : t('create_account')}
                 </button>
             </form>
