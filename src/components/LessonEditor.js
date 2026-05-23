@@ -105,25 +105,25 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
                                     else if (rawUrl.includes('embed/')) vidId = rawUrl.split('embed/')[1].split('?')[0];
                                     
                                     if (vidId) {
-                                        // ניקוי מוחלט של מיתוג יוטיוב וסרטונים קשורים
-                                        cleanUrl = `https://www.youtube-nocookie.com/embed/${vidId}?rel=0&modestbranding=1&showinfo=0&controls=1&disablekb=1&playsinline=1`;
+                                        // פרמטרים מחמירים להסתרת ממשק יוטיוב עד כמה שאפשר
+                                        cleanUrl = `https://www.youtube-nocookie.com/embed/${vidId}?rel=0&modestbranding=1&showinfo=0&controls=1&disablekb=1&playsinline=1&iv_load_policy=3&fs=0`;
                                     }
                                 } else {
                                     cleanUrl = rawUrl.replace('watch?v=', 'embed/');
                                 }
 
                                 return (
-                                    <div className="relative w-full aspect-video rounded-3xl shadow-xl border overflow-hidden bg-black">
-                                        {/* Sandbox חוסם פתיחה של חלונות קופצים או טאבים חדשים (כמו לחיצה על יוטיוב) */}
+                                    <div className="relative w-full aspect-video rounded-3xl shadow-xl border overflow-hidden bg-black group">
                                         <iframe 
                                             title="video-player" 
                                             className="w-full h-full" 
                                             src={cleanUrl} 
-                                            sandbox="allow-scripts allow-same-origin allow-presentation" 
                                             allowFullScreen 
                                         />
-                                        {/* שכבת מגן שקופה שמונעת קליק על כותרת הסרטון למעלה */}
-                                        <div className="absolute top-0 left-0 w-full h-16 bg-transparent z-10" title="וידאו מאובטח"></div>
+                                        {/* שכבת הגנה עליונה - חומת זכוכית שחוסמת לחיצה על כותרת הסרטון וסמלי השיתוף */}
+                                        <div className="absolute top-0 left-0 w-full h-20 bg-transparent z-10" title="וידאו מאובטח"></div>
+                                        {/* שכבת הגנה תחתונה ימנית - חומת זכוכית שחוסמת לחיצה על הלוגו של יוטיוב למטה */}
+                                        <div className="absolute bottom-0 right-0 w-32 h-16 bg-transparent z-10"></div>
                                     </div>
                                 );
                             })()
