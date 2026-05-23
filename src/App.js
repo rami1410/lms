@@ -12,13 +12,13 @@ import AdminPanel from './components/AdminPanel';
 import CompassView from './components/CompassView'; 
 import FloatingBot from './components/FloatingBot';
 import LandingPage from './components/LandingPage';
-import AccessibilityWidget from './components/AccessibilityWidget'; // ייבוא תפריט הנגישות
+import AccessibilityWidget from './components/AccessibilityWidget'; 
 import { onSnapshot, collection, doc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.70"; 
+export const APP_VERSION = "2.71"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -92,7 +92,7 @@ export default function App() {
             const inst = localInstitutions.find(i => i.id === found.institutionId);
             if (inst?.expiryDate && new Date(inst.expiryDate) < new Date()) return setToast(t('expiry_msg'));
             setCurrentUser(found); setViewMode(found.role || 'student');
-        } else { setToast('פרטים שגויים'); }
+        } else { setToast(t('wrong_details') || 'פרטים שגויים'); }
     };
 
     const currentBannerUrl = localInstitutions.find(i => i.id === currentUser?.institutionId)?.mapBackground 
@@ -111,13 +111,14 @@ export default function App() {
         <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center relative" dir={direction}>
             <button 
                 onClick={() => setShowLanding(true)} 
-                className="absolute top-6 right-6 bg-slate-900/60 hover:bg-slate-900/90 text-white px-6 py-2 rounded-full font-bold flex items-center gap-2 backdrop-blur-md transition-colors shadow-lg z-50 border border-slate-700/50"
+                className={`absolute top-6 ${direction === 'rtl' ? 'right-6' : 'left-6'} bg-slate-900/60 hover:bg-slate-900/90 text-white px-6 py-2 rounded-full font-bold flex items-center gap-2 backdrop-blur-md transition-colors shadow-lg z-50 border border-slate-700/50`}
             >
-                <span>&rarr;</span> חזרה לעמוד הראשי
+                <span className={direction === 'rtl' ? 'rotate-0' : 'rotate-180'}>&rarr;</span> 
+                {lang === 'en' ? 'Back to Home' : lang === 'ru' ? 'На главную' : lang === 'ar' ? 'العودة للرئيسية' : 'חזרה לעמוד הראשי'}
             </button>
             
             {!isRegistering ? <Login onLogin={handleLogin} onRegisterToggle={()=>setIsRegistering(true)} lang={lang} setLang={setLang} t={t} /> 
-            : <Register onBack={()=>setIsRegistering(false)} institutions={localInstitutions} users={localUsers} toast={setToast} />}
+            : <Register onBack={()=>setIsRegistering(false)} institutions={localInstitutions} users={localUsers} toast={setToast} t={t} lang={lang} />}
             
             <AccessibilityWidget />
         </div>
@@ -235,4 +236,3 @@ export default function App() {
         </div>
     );
 }
-
