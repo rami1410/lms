@@ -18,7 +18,7 @@ import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.71"; 
+export const APP_VERSION = "2.72"; 
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -86,13 +86,25 @@ export default function App() {
     };
 
     const handleLogin = (u, p) => {
-        if (u === 'rami' && p === '1234') { setCurrentUser({id: 'admin-rami', firstName:'רמי', role:'admin'}); setViewMode('admin'); return; }
-        const found = localUsers.find(x => x.username === u && x.password === p);
+        // מוחק רווחים מיותרים שהוקלדו בטעות
+        const cleanU = (u || '').trim();
+        const cleanP = (p || '').trim();
+
+        if (cleanU === 'rami' && cleanP === '1234') { 
+            setCurrentUser({id: 'admin-rami', firstName:'רמי', role:'admin'}); 
+            setViewMode('admin'); 
+            return; 
+        }
+        
+        const found = localUsers.find(x => x.username === cleanU && x.password === cleanP);
         if (found) {
             const inst = localInstitutions.find(i => i.id === found.institutionId);
             if (inst?.expiryDate && new Date(inst.expiryDate) < new Date()) return setToast(t('expiry_msg'));
-            setCurrentUser(found); setViewMode(found.role || 'student');
-        } else { setToast(t('wrong_details') || 'פרטים שגויים'); }
+            setCurrentUser(found); 
+            setViewMode(found.role || 'student');
+        } else { 
+            setToast(t('wrong_details') || 'פרטים שגויים'); 
+        }
     };
 
     const currentBannerUrl = localInstitutions.find(i => i.id === currentUser?.institutionId)?.mapBackground 
@@ -121,6 +133,9 @@ export default function App() {
             : <Register onBack={()=>setIsRegistering(false)} institutions={localInstitutions} users={localUsers} toast={setToast} t={t} lang={lang} />}
             
             <AccessibilityWidget />
+
+            {/* נוסף רכיב ה-Toast למסך ההתחברות כדי שיראו שגיאות */}
+            {toast && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-8 py-4 rounded-full font-black z-[5000] shadow-2xl animate-bounce" style={{ animationDuration: '0.5s' }} ref={(el) => { if(el) setTimeout(() => setToast(''), 3000); }}>{toast}</div>}
         </div>
     );
 
@@ -227,7 +242,6 @@ export default function App() {
             {activeModal?.type === 'student' && <StudentModal onClose={() => setActiveModal(null)} toast={setToast} institutions={localInstitutions} allUsers={localUsers} initialData={activeModal.data} isAdmin={viewMode === 'admin'} />}
             {activeModal?.type === 'inst' && <InstitutionModal onClose={() => setActiveModal(null)} toast={setToast} initialData={activeModal.data} existingCourses={localCourses} />}
 
-            {/* רכיבי צד ומרחפים */}
             <AccessibilityWidget />
             <FloatingBot geminiKey={process.env.REACT_APP_GEMINI_API_KEY} />
             
