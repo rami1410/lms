@@ -49,19 +49,19 @@ export default function AccessibilityWidget() {
         if (largeText) {
             // הגדלת כל הטקסט באתר באופן פרופורציונלי
             css += `
-                html { font-size: 120% !important; }
+                html { font-size: 115% !important; }
             `;
         }
 
         if (highlightLinks) {
             // הדגשת קישורים וכפתורים בצורה בולטת
             css += `
-                a, button, [role="button"], input[type="submit"] {
+                a, button, [role="button"], input[type="submit"], select {
                     text-decoration: underline !important;
                     text-decoration-thickness: 3px !important;
                     text-underline-offset: 4px !important;
-                    color: #0056b3 !important;
-                    border-color: #0056b3 !important;
+                    color: #2563eb !important;
+                    border-color: #2563eb !important;
                 }
             `;
         }
@@ -85,70 +85,66 @@ export default function AccessibilityWidget() {
                     role="dialog"
                     aria-modal="true"
                     aria-label="תפריט נגישות"
-                    className="absolute bottom-20 left-0 bg-white rounded-3xl shadow-2xl p-6 w-80 border border-slate-100 animate-in fade-in slide-in-from-bottom-4"
+                    className="absolute bottom-20 left-0 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-6 w-72 border border-slate-200/50 animate-in fade-in slide-in-from-bottom-4"
                 >
-                    <div className="flex items-center justify-end gap-3 mb-6 border-b border-slate-100 pb-4">
-                        <h2 className="text-xl font-black text-slate-800">תפריט נגישות</h2>
-                        <div className="bg-blue-600 text-white p-1.5 rounded-lg" aria-hidden="true">
-                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12,2C13.1,2 14,2.9 14,4C14,5.1 13.1,6 12,6C10.9,6 10,5.1 10,4C10,2.9 10.9,2 12,2M8,22V17.5L10.3,15L8.5,9.4L6.1,10.1C6,11.2 5.3,12 4.1,12C3.1,12 2.2,11.2 2.2,10.2C2.2,9.1 3.1,8.3 4.1,8.3C4.8,8.3 5.4,8.7 5.7,9.2L8.2,8.4C8.6,8.2 9,8.4 9.2,8.8L11,14.6L14,12V8H16V13L12.5,15.6L13.1,17.5H18V22H16V19.1L14,18.4L13.1,22H8Z" /></svg>
-                        </div>
+                    <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
+                        <h2 className="text-xl font-black text-slate-800">התאמת נגישות</h2>
+                        <button 
+                            onClick={() => setIsOpen(false)} 
+                            className="text-slate-400 hover:text-slate-700 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100"
+                            aria-label="סגור תפריט"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
                     </div>
 
                     <div className="space-y-4">
                         <label className="flex items-center justify-between cursor-pointer group py-2">
-                            <span className="font-bold text-slate-700 text-lg group-hover:text-blue-600 transition-colors">ניגודיות גבוהה</span>
+                            <span className="font-bold text-slate-700 text-base group-hover:text-blue-600 transition-colors">ניגודיות גבוהה</span>
                             <input
                                 type="checkbox"
                                 checked={highContrast}
                                 onChange={(e) => setHighContrast(e.target.checked)}
-                                className="w-6 h-6 rounded border-slate-300 accent-blue-600 focus:ring-4 focus:ring-blue-500/30 cursor-pointer"
-                                aria-label="הפעל ניגודיות גבוהה"
+                                className="w-5 h-5 rounded border-slate-300 accent-blue-600 cursor-pointer"
                             />
                         </label>
 
                         <label className="flex items-center justify-between cursor-pointer group py-2">
-                            <span className="font-bold text-slate-700 text-lg group-hover:text-blue-600 transition-colors">טקסט מוגדל</span>
+                            <span className="font-bold text-slate-700 text-base group-hover:text-blue-600 transition-colors">טקסט מוגדל</span>
                             <input
                                 type="checkbox"
                                 checked={largeText}
                                 onChange={(e) => setLargeText(e.target.checked)}
-                                className="w-6 h-6 rounded border-slate-300 accent-blue-600 focus:ring-4 focus:ring-blue-500/30 cursor-pointer"
-                                aria-label="הפעל טקסט מוגדל"
+                                className="w-5 h-5 rounded border-slate-300 accent-blue-600 cursor-pointer"
                             />
                         </label>
 
                         <label className="flex items-center justify-between cursor-pointer group py-2">
-                            <span className="font-bold text-slate-700 text-lg group-hover:text-blue-600 transition-colors">הדגשת קישורים</span>
+                            <span className="font-bold text-slate-700 text-base group-hover:text-blue-600 transition-colors">הדגשת קישורים</span>
                             <input
                                 type="checkbox"
                                 checked={highlightLinks}
                                 onChange={(e) => setHighlightLinks(e.target.checked)}
-                                className="w-6 h-6 rounded border-slate-300 accent-blue-600 focus:ring-4 focus:ring-blue-500/30 cursor-pointer"
-                                aria-label="הפעל הדגשת קישורים"
+                                className="w-5 h-5 rounded border-slate-300 accent-blue-600 cursor-pointer"
                             />
                         </label>
                     </div>
-                    
-                    <button
-                       onClick={() => setIsOpen(false)}
-                       className="w-full mt-6 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition-colors focus:ring-4 focus:ring-slate-300"
-                       aria-label="סגור תפריט נגישות"
-                    >
-                        סגור
-                    </button>
                 </div>
             )}
 
-            {/* כפתור הנגישות הצף */}
+            {/* כפתור הנגישות הצף בעיצוב מודרני ואלגנטי */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 aria-expanded={isOpen}
                 aria-label="פתח תפריט נגישות"
-                className="bg-slate-900 hover:bg-slate-800 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-transform hover:scale-105 border-4 border-white focus:outline-none focus:ring-4 focus:ring-blue-500"
+                className="bg-blue-600 hover:bg-blue-700 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:shadow-2xl transition-all hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-500/50"
             >
-                <div className="bg-blue-600 p-2.5 rounded-lg">
-                    <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M12,2C13.1,2 14,2.9 14,4C14,5.1 13.1,6 12,6C10.9,6 10,5.1 10,4C10,2.9 10.9,2 12,2M8,22V17.5L10.3,15L8.5,9.4L6.1,10.1C6,11.2 5.3,12 4.1,12C3.1,12 2.2,11.2 2.2,10.2C2.2,9.1 3.1,8.3 4.1,8.3C4.8,8.3 5.4,8.7 5.7,9.2L8.2,8.4C8.6,8.2 9,8.4 9.2,8.8L11,14.6L14,12V8H16V13L12.5,15.6L13.1,17.5H18V22H16V19.1L14,18.4L13.1,22H8Z" /></svg>
-                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="4" r="2"></circle>
+                    <path d="M4 9h16"></path>
+                    <path d="M12 9v8"></path>
+                    <path d="M8 22l4-5 4 5"></path>
+                </svg>
             </button>
         </div>
     );
