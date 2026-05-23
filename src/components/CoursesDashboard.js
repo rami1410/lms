@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { db, appId } from '../firebase';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 const HERO_IMAGES = [
     "https://images.unsplash.com/photo-1445264618000-f1e069c5920f?q=80&w=1200", 
@@ -11,14 +13,45 @@ const HERO_IMAGES = [
     "https://images.unsplash.com/photo-1501854140801-50d01698950b?q=80&w=1200"  
 ];
 
-export default function CoursesDashboard({ permittedCourses, userProgress, viewMode, setViewingCourse, setActiveModal, t }) {
+export default function CoursesDashboard({ permittedCourses, userProgress, viewMode, setViewingCourse, setActiveModal, t, toast }) {
     const [heroBg, setHeroBg] = useState('');
-    const [courseViewStyle, setCourseViewStyle] = useState('grid');
+    const [courseViewStyle, setCourseViewStyle] = useState('table'); // ברירת מחדל: טבלה
     const [courseSearch, setCourseSearch] = useState('');
 
     useEffect(() => {
         setHeroBg(HERO_IMAGES[Math.floor(Math.random() * HERO_IMAGES.length)]);
     }, []);
+
+    // פונקציות ניהול למנהלים בלבד
+    const handleDuplicateCourse = async (course) => {
+        if (!window.confirm(`האם אתה בטוח שברצונך לשכפל את הקורס "${course.name}"?`)) return;
+        try {
+            const newId = `course-${Date.now()}`;
+            const courseCopy = { 
+                ...course, 
+                name: `${course.name} - עותק`, 
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            delete courseCopy.id; 
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', newId), courseCopy);
+            if(toast) toast('הקורס שוכפל בהצלחה!');
+        } catch (err) {
+            console.error(err);
+            if(toast) toast('שגיאה בשכפול הקורס.');
+        }
+    };
+
+    const handleDeleteCourse = async (courseId, courseName) => {
+        if (!window.confirm(`אזהרה! מחיקת הקורס "${courseName}" היא סופית. האם להמשיך?`)) return;
+        try {
+            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', courseId));
+            if(toast) toast('הקורס נמחק בהצלחה.');
+        } catch (err) {
+            console.error(err);
+            if(toast) toast('שגיאה במחיקת הקורס.');
+        }
+    };
 
     // סינון חופשי לפי שורת החיפוש
     const getVisibleCourses = () => {
@@ -84,10 +117,22 @@ export default function CoursesDashboard({ permittedCourses, userProgress, viewM
                                         <td className="p-4 text-center"><span className="bg-purple-100 text-purple-700 font-bold px-3 py-1 rounded-full text-sm">{pct}%</span></td>
                                         <td className="p-4 text-center font-medium" dir="ltr">{c.fromGrade} - {c.toGrade}</td>
                                         <td className="p-4">
-                                            <div className="flex gap-1">{c.fields?.slice(0,2).map(f => <span key={f} className="text-xs bg-slate-100 text-slate-500 font-bold px-2 py-1 rounded">{f}</span>)}</div>
+                                            <div className="flex gap-1 flex-wrap max-w-[200px]">
+                                                {c.fields?.slice(0,2).map(f => <span key={f} className="text-xs bg-slate-100 text-slate-500 font-bold px-2 py-1 rounded">{f}</span>)}
+                                            </div>
                                         </td>
                                         <td className="p-4 text-center">
-                                            <button onClick={() => setViewingCourse(c)} className="bg-slate-900 text-white px-4 py-1.5 rounded-lg font-bold text-sm hover:bg-purple-600 transition-colors">כניסה</button>
+                                            <div className="flex justify-center gap-2">
+                                                <button onClick={() => setViewingCourse(c)} className="bg-slate-900 text-white px-4 py-1.5 rounded-lg font-bold text-sm hover:bg-purple-600 transition-colors">כניסה</button>
+                                                
+                                                {/* כפתורי ניהול רק למנהל - טבלה */}
+                                                {viewMode === 'admin' && (
+                                                    <>
+                                                        <button onClick={() => handleDuplicateCourse(c)} className="bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-slate-300 transition-colors">שכפל</button>
+                                                        <button onClick={() => handleDeleteCourse(c.id, c.name)} className="bg-red-100 text-red-600 px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-red-200 transition-colors">מחק</button>
+                                                    </>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 );
@@ -119,7 +164,18 @@ export default function CoursesDashboard({ permittedCourses, userProgress, viewM
                                         {c.fields.slice(0,3).map(f => <span key={f} className="text-xs bg-slate-100 text-slate-500 font-bold px-2 py-1 rounded-md">{f}</span>)}
                                     </div>
                                 )}
-                                <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black group-hover:bg-purple-600 transition-colors shadow-lg mt-auto">כניסה לקורס</button>
+                                
+                                <div className="mt-auto w-full flex flex-col gap-2">
+                                    <button onClick={(e) => { e.stopPropagation(); setViewingCourse(c); }} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black group-hover:bg-purple-600 transition-colors shadow-lg">כניסה לקורס</button>
+                                    
+                                    {/* כפתורי ניהול רק למנהל - כרטיסיה */}
+                                    {viewMode === 'admin' && (
+                                        <div className="flex gap-2">
+                                            <button onClick={(e) => { e.stopPropagation(); handleDuplicateCourse(c); }} className="flex-1 bg-slate-200 text-slate-700 py-2 rounded-xl font-bold text-sm hover:bg-slate-300 transition-colors">שכפל</button>
+                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteCourse(c.id, c.name); }} className="flex-1 bg-red-100 text-red-600 py-2 rounded-xl font-bold text-sm hover:bg-red-200 transition-colors">מחק</button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         );
                     })}
