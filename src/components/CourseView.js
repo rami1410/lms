@@ -45,6 +45,35 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
         } catch (e) { toast("שגיאה בשמירה"); }
     };
 
+    // --- הפונקציות החדשות לשכפול ומחיקה של שיעור ספציפי ---
+    const duplicateActiveLesson = async () => {
+        if (!activeLesson) return;
+        const duplicatedLesson = { 
+            ...activeLesson, 
+            id: "less-" + Date.now(), 
+            title: `${activeLesson.title} (עותק)` 
+        };
+        const updated = [...lessons, duplicatedLesson];
+        setLessons(updated);
+        try {
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', course.id), { lessons: updated });
+            toast("השיעור שוכפל בהצלחה!");
+        } catch (e) { toast("שגיאה בשכפול"); }
+    };
+
+    const deleteActiveLesson = async () => {
+        if (!activeLesson) return;
+        if (!window.confirm("האם אתה בטוח שברצונך למחוק שיעור זה לחלוטין?")) return;
+        
+        const updated = lessons.filter(l => l.id !== activeLesson.id);
+        setLessons(updated);
+        setActiveLesson(null); // סגירת השיעור מהתצוגה לאחר שנמחק
+        try {
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', course.id), { lessons: updated });
+            toast("השיעור נמחק!");
+        } catch (e) { toast("שגיאה במחיקה"); }
+    };
+
     const toggleComplete = async (lessonId) => {
         const newProgress = { ...userProgress, [lessonId]: !userProgress[lessonId] };
         try {
@@ -55,13 +84,13 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
     return (
         <div dir="rtl" className="min-h-screen bg-white flex flex-col font-assistant overflow-hidden">
             <nav className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm z-10">
-                <button onClick={onBack} className="text-purple-600 font-black">← חזרה</button>
+                <button onClick={onBack} className="text-purple-600 font-black hover:bg-purple-50 px-4 py-2 rounded-xl transition-colors">← חזרה</button>
                 <div className="flex items-center gap-4">
                     <h1 className="text-xl font-black">{course.name}</h1>
                     <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-black">{getPct()}%</span>
                 </div>
                 {isAdmin && (
-                    <button onClick={() => setIsEditMode(!isEditMode)} className={`px-4 py-2 rounded-xl font-black text-sm ${isEditMode ? 'bg-red-500 text-white' : 'bg-slate-900 text-white'}`}>
+                    <button onClick={() => setIsEditMode(!isEditMode)} className={`px-4 py-2 rounded-xl font-black text-sm transition-colors ${isEditMode ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-slate-900 hover:bg-slate-800 text-white'}`}>
                         {isEditMode ? 'סיום עריכה' : '✏️ עריכת קורס'}
                     </button>
                 )}
@@ -72,7 +101,7 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
                     <h3 className="font-black mb-6 text-slate-400 text-[10px] uppercase tracking-widest">תכני הקורס</h3>
                     <div className="space-y-2 flex-grow">
                         {lessons.map((l, i) => (
-                            <button key={l.id} onClick={() => setActiveLesson(l)} className={`w-full text-right p-4 rounded-2xl flex items-center transition-all ${activeLesson?.id === l.id ? 'bg-purple-600 text-white shadow-lg' : 'bg-white border text-slate-600'}`}>
+                            <button key={l.id} onClick={() => setActiveLesson(l)} className={`w-full text-right p-4 rounded-2xl flex items-center transition-all ${activeLesson?.id === l.id ? 'bg-purple-600 text-white shadow-lg' : 'bg-white border text-slate-600 hover:border-purple-300 hover:shadow-sm'}`}>
                                 <div className={`w-4 h-4 ml-3 rounded-full border-2 flex items-center justify-center ${userProgress[l.id] ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'}`}>
                                     {userProgress[l.id] && '✓'}
                                 </div>
@@ -81,12 +110,13 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
                                 {l.isSmartContent && <span className="text-[10px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full mr-2 font-black">AI</span>}
                             </button>
                         ))}
+                        {lessons.length === 0 && <p className="text-slate-400 text-center font-bold mt-10">אין תכנים בקורס זה.</p>}
                     </div>
 
                     {isEditMode && (
                         <div className="mt-8 pt-6 border-t grid grid-cols-3 gap-2">
                             {['video', 'text', 'padlet', 'genially', 'quiz', 'game', 'file', 'link', 'html'].map(type => (
-                                <button key={type} onClick={() => addLesson(type)} className="p-2 bg-white border rounded-xl hover:bg-purple-50 text-center text-lg" title={type}>
+                                <button key={type} onClick={() => addLesson(type)} className="p-2 bg-white border rounded-xl hover:bg-purple-50 text-center text-lg transition-colors shadow-sm" title={`הוסף ${type}`}>
                                     {getLessonIcon(type)}
                                 </button>
                             ))}
@@ -117,7 +147,20 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
                                             setActiveLesson({...activeLesson, embedUrl: e.target.value, url: e.target.value});
                                         }} />
                                     )}
-                                    <button onClick={saveChanges} className="w-full bg-purple-600 text-white py-4 rounded-2xl font-black shadow-lg">שמור שינויים</button>
+                                    
+                                    {/* החלפת כפתור השמירה הגדול ב-3 כפתורים */}
+                                    <div className="flex gap-4 pt-4 border-t border-purple-100">
+                                        <button onClick={deleteActiveLesson} className="flex-1 bg-red-100 text-red-600 hover:bg-red-200 py-4 rounded-2xl font-black transition-colors shadow-sm">
+                                            🗑️ מחיקת שיעור
+                                        </button>
+                                        <button onClick={duplicateActiveLesson} className="flex-1 bg-slate-200 text-slate-700 hover:bg-slate-300 py-4 rounded-2xl font-black transition-colors shadow-sm">
+                                            📑 שכפול שיעור
+                                        </button>
+                                        <button onClick={saveChanges} className="flex-[2] bg-purple-600 text-white hover:bg-purple-700 py-4 rounded-2xl font-black transition-colors shadow-lg">
+                                            💾 שמור שינויים
+                                        </button>
+                                    </div>
+
                                 </div>
                             ) : (
                                 <>
@@ -126,7 +169,7 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
                                             {getLessonIcon(activeLesson.type)}
                                             <h2 className="text-2xl font-black text-slate-800">{activeLesson.title}</h2>
                                         </div>
-                                        <button onClick={() => toggleComplete(activeLesson.id)} className={`px-8 py-3 rounded-2xl font-black ${userProgress[activeLesson.id] ? 'bg-green-100 text-green-700' : 'bg-slate-900 text-white shadow-xl hover:scale-105'}`}>
+                                        <button onClick={() => toggleComplete(activeLesson.id)} className={`px-8 py-3 rounded-2xl font-black transition-all ${userProgress[activeLesson.id] ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-900 text-white shadow-xl hover:scale-105 hover:bg-purple-600'}`}>
                                             {userProgress[activeLesson.id] ? 'הושלם ✓' : 'סמן כהושלם'}
                                         </button>
                                     </div>
@@ -168,7 +211,7 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
                     ) : (
                         <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4">
                             <span className="text-6xl">👈</span>
-                            <span className="font-black text-3xl">בחר שיעור מהתפריט</span>
+                            <span className="font-black text-3xl">בחר שיעור מהתפריט לעריכה או צפייה</span>
                         </div>
                     )}
                 </div>
