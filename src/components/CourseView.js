@@ -8,6 +8,9 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
     const [lessons, setLessons] = useState(course.lessons || []);
     const [activeLesson, setActiveLesson] = useState(null);
     const [isEditMode, setIsEditMode] = useState(false);
+    
+    // ניהול שם הקורס לעריכה מהירה
+    const [courseName, setCourseName] = useState(course.name || '');
 
     const getLessonIcon = (type) => {
         const base = "https://www.google.com/s2/favicons?sz=64&domain=";
@@ -20,17 +23,28 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
             case 'file': return <span className="ml-2 text-lg">📄</span>;
             case 'link': return <span className="ml-2 text-lg">🔗</span>;
             case 'html': return <span className="ml-2 text-lg">🌐</span>;
-            case 'chapter': return <span className="ml-2 text-lg">📁</span>; // אייקון לפרק
+            case 'chapter': return <span className="ml-2 text-lg">📁</span>; 
             default: return <span className="ml-2 text-lg">📝</span>;
         }
     };
 
-    // חישוב אחוזים רק על סמך שיעורים (ללא פרקים)
     const getPct = () => {
         const actualLessons = lessons.filter(l => l.type !== 'chapter');
         if (!actualLessons.length) return 0;
         const done = Object.values(userProgress).filter(v => v === true).length;
         return Math.round((done / actualLessons.length) * 100);
+    };
+
+    // שמירת שם הקורס כשהמשתמש יוצא מתיבת הטקסט
+    const saveCourseName = async () => {
+        if (!courseName.trim()) return toast("שם הקורס לא יכול להיות ריק");
+        if (courseName !== course.name) {
+            try {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', course.id), { name: courseName });
+                toast("שם הקורס התעדכן!");
+                course.name = courseName; // עדכון מקומי זמני
+            } catch (e) { toast("שגיאה בעדכון שם הקורס"); }
+        }
     };
 
     const addLesson = async (type) => {
@@ -50,7 +64,6 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
         } catch (e) { toast("שגיאה בשמירה"); }
     };
 
-    // שמירה אוטומטית שמופעלת לאחר פעולת גרירה
     const autoSaveLessons = async (reorderedLessons) => {
         setLessons(reorderedLessons);
         try {
@@ -95,7 +108,19 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
             <nav className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm z-30">
                 <button onClick={onBack} className="text-purple-600 font-black hover:bg-purple-50 px-4 py-2 rounded-xl transition-colors">← חזרה</button>
                 <div className="flex items-center gap-4">
-                    <h1 className="text-xl font-black">{course.name}</h1>
+                    {/* תיבת עריכה לשם הקורס */}
+                    {isEditMode ? (
+                        <input 
+                            type="text" 
+                            value={courseName} 
+                            onChange={(e) => setCourseName(e.target.value)}
+                            onBlur={saveCourseName}
+                            className="text-xl font-black bg-slate-100 border-2 border-purple-300 px-4 py-1 rounded-xl outline-none focus:border-purple-600 transition-colors w-96"
+                            placeholder="הכנס שם קורס..."
+                        />
+                    ) : (
+                        <h1 className="text-xl font-black">{courseName}</h1>
+                    )}
                     <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-black">{getPct()}%</span>
                 </div>
                 {isAdmin && (
@@ -106,7 +131,6 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
             </nav>
 
             <div className="flex flex-grow overflow-hidden h-[calc(100vh-80px)]">
-                {/* התפריט הצדדי שהופרד */}
                 <LessonSidebar 
                     lessons={lessons} 
                     activeLesson={activeLesson} 
@@ -119,7 +143,6 @@ export default function CourseView({ course, onBack, toast, isAdmin, userProgres
                 />
 
                 <div className="flex-grow p-12 overflow-y-auto bg-white relative z-10">
-                    {/* אזור התוכן והעריכה שהופרד */}
                     <LessonEditor 
                         activeLesson={activeLesson}
                         setActiveLesson={setActiveLesson}
