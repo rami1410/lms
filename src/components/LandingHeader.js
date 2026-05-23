@@ -1,63 +1,50 @@
 import React from 'react';
 import { LOGO_URL } from '../App';
 
-export default function LandingHeader({ onLoginClick, catalogUrl, brandTeal, brandGreen }) {
-    
-    const handlePrintPDF = () => {
-        window.print();
-    };
+export default function LandingHeader({ onLoginClick }) {
+    const catalogUrl = "https://heyzine.com/flip-book/426cdf50eb.html";
 
     return (
-        <header className="fixed top-0 left-0 w-full bg-white/90 backdrop-blur-md z-50 border-b border-slate-100 no-print transition-all">
-            <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-                
-                <div className="flex items-center gap-8">
-                    <img src={LOGO_URL} alt="Logo" className="h-12 cursor-pointer hover:scale-105 transition-transform" />
-                    
-                    <nav className="hidden md:flex items-center gap-6 font-bold text-slate-600">
-                        <a href="#home" className="hover:text-[#2bb2c4] transition-colors">התחלה</a>
-                        <a href="#activities" className="hover:text-[#2bb2c4] transition-colors">פעילות</a>
-                        <a href="#partners" className="hover:text-[#2bb2c4] transition-colors">שותפים לדרך</a>
-                        <a href="#impact" className="hover:text-[#2bb2c4] transition-colors">אימפקט</a>
-                        <a href="#equipment" className="hover:text-[#2bb2c4] transition-colors">הציוד שלנו</a>
+        <header className="fixed top-0 w-full bg-white/90 backdrop-blur-md shadow-sm z-[100] no-print">
+            <div className="max-w-7xl mx-auto px-4 flex justify-between items-center h-24">
+                <div className="flex items-center gap-6">
+                    <img src={LOGO_URL} alt="לוגו חותם חיים" className="h-16 md:h-20" />
+                    <nav className="hidden lg:flex gap-8 text-sm font-bold text-chotam-black tracking-widest uppercase items-center">
+                        <a href="#hero" className="hover:text-chotam-teal transition">התחלה</a>
+                        
+                        <div className="relative group py-4">
+                            <a href="#sectors" className="hover:text-chotam-teal transition flex items-center gap-1 cursor-pointer">
+                                פעילות <span className="text-[10px] opacity-50 relative top-px">▼</span>
+                            </a>
+                            <div className="absolute top-full right-0 w-56 bg-white border border-slate-100 shadow-2xl rounded-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 flex flex-col py-3 overflow-hidden">
+                                <a href="#strip-1" className="px-5 py-3 hover:bg-slate-50 hover:text-chotam-teal text-sm transition font-semibold border-b border-slate-50">1. עולם הציוד והאספקה</a>
+                                <a href="#strip-2" className="px-5 py-3 hover:bg-slate-50 hover:text-chotam-green text-sm transition font-semibold border-b border-slate-50">2. הדרכה וליווי פדגוגי</a>
+                                <a href="#strip-3" className="px-5 py-3 hover:bg-slate-50 hover:text-chotam-orange text-sm transition font-semibold border-b border-slate-50">3. הקמת מרחבי למידה</a>
+                                <a href="#strip-4" className="px-5 py-3 hover:bg-slate-50 hover:text-chotam-teal text-sm transition font-semibold border-b border-slate-50">4. חלומציאות</a>
+                                <a href="#strip-5" className="px-5 py-3 hover:bg-slate-50 hover:text-chotam-yellow text-sm transition font-semibold border-b border-slate-50">5. משלחות למידה</a>
+                                <a href="#strip-6" className="px-5 py-3 hover:bg-slate-50 hover:text-chotam-red text-sm transition font-semibold">6. סדנאות וימי שיא</a>
+                            </div>
+                        </div>
+
+                        <a href="#partners" className="hover:text-chotam-teal transition">שותפים לדרך</a>
+                        <a href="#impact" className="hover:text-chotam-teal transition">אימפקט</a>
+                        <a href="#rami" className="hover:text-chotam-teal transition">המייסד</a>
                     </nav>
                 </div>
-
-                <div className="flex items-center gap-3">
-                    <button 
-                        onClick={handlePrintPDF}
-                        className="flex items-center gap-2 px-4 py-2 rounded-full font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all"
-                    >
+                <div className="flex gap-4 items-center">
+                    {/* כפתור PDF מותאם */}
+                    <button onClick={() => window.print()} className="flex items-center gap-1 text-slate-400 font-bold hover:text-chotam-teal transition">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                         PDF
                     </button>
                     
-                    <a 
-                        href={catalogUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hidden md:flex items-center gap-2 px-5 py-2 rounded-full font-black text-white shadow-md hover:shadow-lg hover:scale-105 transition-all"
-                        style={{ backgroundImage: `linear-gradient(to right, ${brandTeal}, ${brandGreen})` }}
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
-                        לצפייה בקטלוג
+                    {/* כפתור קטלוג בסגנון המותג (ירוק-צהבהב) */}
+                    <a href={catalogUrl} target="_blank" rel="noopener noreferrer" className="hidden xl:block bg-chotam-green text-white px-6 py-3 rounded-full font-bold text-sm shadow-xl hover:scale-105 transition duration-300">
+                        לקטלוג המוצרים
                     </a>
 
-                    <a 
-                        href="mailto:contact@robotix.co.il"
-                        className="hidden sm:block px-5 py-2 rounded-full font-black text-white shadow-md hover:shadow-lg transition-all"
-                        style={{ backgroundColor: brandTeal }}
-                    >
-                        פגישת ייעוץ
-                    </a>
-
-                    <button 
-                        onClick={onLoginClick}
-                        className="px-6 py-2 rounded-full font-black text-white shadow-md hover:shadow-lg hover:scale-105 transition-all"
-                        style={{ backgroundColor: '#0f172a' }}
-                    >
-                        להתחבר
-                    </button>
+                    <a href="#contact" className="hidden md:block bg-chotam-teal text-white px-8 py-3 rounded-full font-bold text-sm shadow-xl hover:scale-105 transition duration-300">פגישת ייעוץ</a>
+                    <button onClick={onLoginClick} className="bg-slate-900 text-white px-8 py-3 rounded-full font-bold text-sm shadow-xl hover:bg-chotam-teal transition duration-300">להתחבר</button>
                 </div>
             </div>
         </header>
