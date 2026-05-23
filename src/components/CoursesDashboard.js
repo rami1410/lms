@@ -15,14 +15,16 @@ const HERO_IMAGES = [
 
 export default function CoursesDashboard({ permittedCourses, userProgress, viewMode, setViewingCourse, setActiveModal, t, toast }) {
     const [heroBg, setHeroBg] = useState('');
-    const [courseViewStyle, setCourseViewStyle] = useState('table'); // ברירת מחדל: טבלה
+    const [courseViewStyle, setCourseViewStyle] = useState('table'); 
     const [courseSearch, setCourseSearch] = useState('');
+    
+    // סטייט חדש לניהול המיון (עמודה וכיוון)
+    const [sortConfig, setSortConfig] = useState({ key: '', direction: '' });
 
     useEffect(() => {
         setHeroBg(HERO_IMAGES[Math.floor(Math.random() * HERO_IMAGES.length)]);
     }, []);
 
-    // פונקציות ניהול למנהלים בלבד
     const handleDuplicateCourse = async (course) => {
         if (!window.confirm(`האם אתה בטוח שברצונך לשכפל את הקורס "${course.name}"?`)) return;
         try {
@@ -53,6 +55,21 @@ export default function CoursesDashboard({ permittedCourses, userProgress, viewM
         }
     };
 
+    // חישוב אחוזי התקדמות בקורס כדי שנוכל למיין לפיו
+    const getCourseProgress = (course) => {
+        const completed = userProgress[course.id] ? Object.values(userProgress[course.id]).filter(v => v === true).length : 0;
+        return course.lessons?.length ? Math.round((completed / course.lessons.length) * 100) : 0;
+    };
+
+    // הפעלת המיון בלחיצה על כותרת
+    const handleSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
     // סינון חופשי לפי שורת החיפוש
     const getVisibleCourses = () => {
         let base = permittedCourses || [];
@@ -63,6 +80,45 @@ export default function CoursesDashboard({ permittedCourses, userProgress, viewM
     };
 
     const visibleCourses = getVisibleCourses();
+
+    // ביצוע המיון (Sorting) על הרשימה המוצגת
+    let sortedCourses = [...visibleCourses];
+    if (sortConfig.key) {
+        sortedCourses.sort((a, b) => {
+            let aVal, bVal;
+            
+            if (sortConfig.key === 'name') {
+                aVal = a.name?.toLowerCase() || '';
+                bVal = b.name?.toLowerCase() || '';
+            } else if (sortConfig.key === 'lessonsCount') {
+                aVal = a.lessons?.length || 0;
+                bVal = b.lessons?.length || 0;
+            } else if (sortConfig.key === 'progress') {
+                aVal = getCourseProgress(a);
+                bVal = getCourseProgress(b);
+            } else if (sortConfig.key === 'age') {
+                aVal = a.fromGrade || 0;
+                bVal = b.fromGrade || 0;
+            }
+
+            if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
+
+    // רכיב גרפי קטן למשולשי המיון בטבלה
+    const SortIcon = ({ columnKey }) => {
+        const isAsc = sortConfig.key === columnKey && sortConfig.direction === 'asc';
+        const isDesc = sortConfig.key === columnKey && sortConfig.direction === 'desc';
+        
+        return (
+            <div className="inline-flex flex-col ml-2 mr-1 align-middle justify-center gap-[2px]">
+                <span className={`text-[9px] leading-none transition-colors ${isAsc ? 'text-purple-600 opacity-100' : 'text-slate-300 opacity-40'}`}>▲</span>
+                <span className={`text-[9px] leading-none transition-colors ${isDesc ? 'text-purple-600 opacity-100' : 'text-slate-300 opacity-40'}`}>▼</span>
+            </div>
+        );
+    };
 
     return (
         <>
@@ -100,20 +156,29 @@ export default function CoursesDashboard({ permittedCourses, userProgress, viewM
                     <table className="w-full text-right border-collapse">
                         <thead>
                             <tr className="bg-slate-50 border-b border-slate-200">
-                                <th className="p-4 font-black text-slate-600">{t('course_name')}</th>
-                                <th className="p-4 font-black text-slate-600 text-center">התקדמות</th>
-                                <th className="p-4 font-black text-slate-600 text-center">{t('age_group')}</th>
+                                <th className="p-4 font-black text-slate-600 cursor-pointer select-none hover:bg-slate-100 transition-colors" onClick={() => handleSort('name')}>
+                                    {t('course_name')} <SortIcon columnKey="name" />
+                                </th>
+                                <th className="p-4 font-black text-slate-600 text-center cursor-pointer select-none hover:bg-slate-100 transition-colors" onClick={() => handleSort('lessonsCount')}>
+                                    מספר שיעורים <SortIcon columnKey="lessonsCount" />
+                                </th>
+                                <th className="p-4 font-black text-slate-600 text-center cursor-pointer select-none hover:bg-slate-100 transition-colors" onClick={() => handleSort('progress')}>
+                                    התקדמות <SortIcon columnKey="progress" />
+                                </th>
+                                <th className="p-4 font-black text-slate-600 text-center cursor-pointer select-none hover:bg-slate-100 transition-colors" onClick={() => handleSort('age')}>
+                                    {t('age_group')} <SortIcon columnKey="age" />
+                                </th>
                                 <th className="p-4 font-black text-slate-600">{t('fields')}</th>
                                 <th className="p-4 font-black text-slate-600 text-center">{t('actions')}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {visibleCourses.map(c => {
-                                const completed = userProgress[c.id] ? Object.values(userProgress[c.id]).filter(v => v === true).length : 0;
-                                const pct = c.lessons?.length ? Math.round((completed / c.lessons.length) * 100) : 0;
+                            {sortedCourses.map(c => {
+                                const pct = getCourseProgress(c);
                                 return (
                                     <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                                         <td className="p-4 font-bold text-slate-800">{c.name}</td>
+                                        <td className="p-4 text-center font-bold text-slate-600 bg-slate-50/50">{c.lessons?.length || 0}</td>
                                         <td className="p-4 text-center"><span className="bg-purple-100 text-purple-700 font-bold px-3 py-1 rounded-full text-sm">{pct}%</span></td>
                                         <td className="p-4 text-center font-medium" dir="ltr">{c.fromGrade} - {c.toGrade}</td>
                                         <td className="p-4">
@@ -125,7 +190,6 @@ export default function CoursesDashboard({ permittedCourses, userProgress, viewM
                                             <div className="flex justify-center gap-2">
                                                 <button onClick={() => setViewingCourse(c)} className="bg-slate-900 text-white px-4 py-1.5 rounded-lg font-bold text-sm hover:bg-purple-600 transition-colors">כניסה</button>
                                                 
-                                                {/* כפתורי ניהול רק למנהל - טבלה */}
                                                 {viewMode === 'admin' && (
                                                     <>
                                                         <button onClick={() => handleDuplicateCourse(c)} className="bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-slate-300 transition-colors">שכפל</button>
@@ -137,14 +201,18 @@ export default function CoursesDashboard({ permittedCourses, userProgress, viewM
                                     </tr>
                                 );
                             })}
+                            {sortedCourses.length === 0 && (
+                                <tr>
+                                    <td colSpan="6" className="text-center p-8 text-slate-400 font-bold">לא נמצאו קורסים מתאימים.</td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
             ) : (
                 <div className="grid md:grid-cols-3 gap-8">
-                    {visibleCourses.map(c => {
-                        const completed = userProgress[c.id] ? Object.values(userProgress[c.id]).filter(v => v === true).length : 0;
-                        const pct = c.lessons?.length ? Math.round((completed / c.lessons.length) * 100) : 0;
+                    {sortedCourses.map(c => {
+                        const pct = getCourseProgress(c);
                         return (
                             <div key={c.id} onClick={() => setViewingCourse(c)} className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col items-center group hover:scale-[1.02] hover:shadow-2xl transition-all cursor-pointer">
                                 {c.image ? (
@@ -159,6 +227,7 @@ export default function CoursesDashboard({ permittedCourses, userProgress, viewM
                                     </div>
                                 )}
                                 <h3 className="font-black text-xl mb-4 text-slate-800 text-center line-clamp-2">{c.name}</h3>
+                                <div className="text-sm font-bold text-slate-500 mb-4 bg-slate-50 px-3 py-1 rounded-full">{c.lessons?.length || 0} שיעורים</div>
                                 {c.fields && c.fields.length > 0 && (
                                     <div className="flex flex-wrap justify-center gap-1 mb-6">
                                         {c.fields.slice(0,3).map(f => <span key={f} className="text-xs bg-slate-100 text-slate-500 font-bold px-2 py-1 rounded-md">{f}</span>)}
@@ -168,7 +237,6 @@ export default function CoursesDashboard({ permittedCourses, userProgress, viewM
                                 <div className="mt-auto w-full flex flex-col gap-2">
                                     <button onClick={(e) => { e.stopPropagation(); setViewingCourse(c); }} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black group-hover:bg-purple-600 transition-colors shadow-lg">כניסה לקורס</button>
                                     
-                                    {/* כפתורי ניהול רק למנהל - כרטיסיה */}
                                     {viewMode === 'admin' && (
                                         <div className="flex gap-2">
                                             <button onClick={(e) => { e.stopPropagation(); handleDuplicateCourse(c); }} className="flex-1 bg-slate-200 text-slate-700 py-2 rounded-xl font-bold text-sm hover:bg-slate-300 transition-colors">שכפל</button>
@@ -179,7 +247,7 @@ export default function CoursesDashboard({ permittedCourses, userProgress, viewM
                             </div>
                         );
                     })}
-                    {visibleCourses.length === 0 && <div className="col-span-3 text-center text-slate-400 font-bold py-10">לא נמצאו קורסים מתאימים.</div>}
+                    {sortedCourses.length === 0 && <div className="col-span-3 text-center text-slate-400 font-bold py-10">לא נמצאו קורסים מתאימים.</div>}
                 </div>
             )}
         </>
