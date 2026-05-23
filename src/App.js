@@ -18,7 +18,7 @@ import { signInAnonymously } from 'firebase/auth';
 
 export const LOGO_URL = "https://i.postimg.cc/mrzcZWpL/lwgw-hwtm-mwnps.gif";
 export const BACKGROUND_VIDEO_ID = "OHLMTgHl6cc"; 
-export const APP_VERSION = "2.80"; 
+export const APP_VERSION = "2.81"; 
 
 const HERO_IMAGES = [
     "https://images.unsplash.com/photo-1445264618000-f1e069c5920f?q=80&w=1200", 
@@ -161,7 +161,7 @@ export default function App() {
 
     return (
         <div dir={direction} className={`min-h-screen bg-slate-50 text-slate-900 font-assistant ${direction === 'rtl' ? 'text-right' : 'text-left'}`}>
-            <Navigation currentUser={currentUser} lang={lang} setLang={setLang} viewMode={viewMode} setViewMode={setViewMode} activeSection={activeSection} setActiveSection={setActiveSection} setViewingCourse={setViewingCourse} setActiveModal={setActiveModal} t={t} direction={direction} onLogout={() => { setCurrentUser(null); setShowLanding(true); }} LOGO_URL={LOGO_URL} />
+            <Navigation currentUser={currentUser} lang={lang} setLang={setLang} viewMode={viewMode} setViewMode={setViewMode} activeSection={activeSection} setActiveSection={setActiveSection} viewingCourse={viewingCourse} setViewingCourse={setViewingCourse} setActiveModal={setActiveModal} t={t} direction={direction} onLogout={() => { setCurrentUser(null); setShowLanding(true); }} LOGO_URL={LOGO_URL} />
 
             <main className="p-8 max-w-7xl mx-auto">
                 {!viewingCourse && activeSection === 'courses' && (
