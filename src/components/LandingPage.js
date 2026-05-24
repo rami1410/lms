@@ -1,75 +1,49 @@
 import React from 'react';
-import ThreeBackground from './ThreeBackground';
-import Accessibility from './Accessibility';
 import LandingHeader from './LandingHeader';
-import LandingContent from './LandingContent';
-import { LOGO_URL } from '../App';
 
-export default function LandingPage({ onLoginClick }) {
-    const catalogUrl = "https://heyzine.com/flip-book/426cdf50eb.html";
-
+export default function LandingPage({ onLoginClick, onNavClick }) {
     return (
-        <div className="antialiased font-sans relative bg-white" dir="rtl">
-            <ThreeBackground />
-            <Accessibility />
+        <div className="min-h-screen bg-white font-assistant flex flex-col relative select-none overflow-x-hidden" dir="rtl">
+            {/* הזרקת סרגל הניווט החדש והעברת פונקציית הניתוב הדינמית אליו */}
+            <LandingHeader onLoginClick={onLoginClick} onNavClick={onNavClick} />
             
-            <style>{`
-                body { scroll-behavior: smooth; overflow-x: hidden; }
-                .section-strip { position: relative; min-height: 100vh; display: flex; align-items: center; padding: 5rem 0; z-index: 20; }
-                .category-content { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); border-radius: 2rem; transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1); opacity: 0; transform: translateX(100px); }
-                .category-content.visible { opacity: 1; transform: translateX(0); }
-                .category-image-wrapper { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.2); border-radius: 2rem; overflow: hidden; opacity: 0; transform: scale(0.8); transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
-                .category-image-wrapper.visible { opacity: 1; transform: scale(1); }
-                
-                .marquee-container { width: 100%; overflow: hidden; padding: 3rem 0; background: #fff; border-top: 1px solid #f0f0f0; border-bottom: 1px solid #f0f0f0; }
-                .marquee-track { display: flex; width: max-content; animation: scroll-left 40s linear infinite; }
-                @keyframes scroll-left { 0% { transform: translateX(0); } 100% { transform: translateX(50%); } }
-                .partner-logo { width: 140px; height: 140px; margin: 0 40px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); flex-shrink: 0; padding: 15px; border: 1px solid #eee; }
-                .partner-logo img { max-width: 90%; max-height: 90%; object-fit: contain; }
-                
-                .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 5000; backdrop-filter: blur(15px); align-items: center; justify-content: center; }
-                .modal-content { background: white; padding: 3rem; border-radius: 2.5rem; max-width: 600px; width: 90%; position: relative; animation: modalIn 0.4s ease-out; }
-                @keyframes modalIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
-                
-                .scroll-indicator { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); text-align: center; color: #1a1a1a; opacity: 0.6; animation: bounce 2s infinite; cursor: pointer; }
-                @keyframes bounce { 0%, 20%, 50%, 80%, 100% {transform: translateY(0) translateX(-50%);} 40% {transform: translateY(-10px) translateX(-50%);} 60% {transform: translateY(-5px) translateX(-50%);} }
-                
-                .personal-box { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; border: 1px solid #f0f0f0; }
-                .personal-box:hover { transform: translateY(-10px); border-color: #2bb2c4; box-shadow: 0 20px 40px rgba(43,178,196,0.2); }
-                
-                /* עודכנו בדיוק לצבעי המותג מהלוגו שהעלת */
-                .text-chotam-teal { color: #2bb2c4; } .bg-chotam-teal { background-color: #2bb2c4; } .border-chotam-teal { border-color: #2bb2c4; }
-                .text-chotam-green { color: #99ca3c; } .bg-chotam-green { background-color: #99ca3c; } .border-chotam-green { border-color: #99ca3c; }
-                .text-chotam-yellow { color: #ffcc00; } .bg-chotam-yellow { background-color: #ffcc00; } .border-chotam-yellow { border-color: #ffcc00; }
-                .text-chotam-orange { color: #f7941d; } .bg-chotam-orange { background-color: #f7941d; } .border-chotam-orange { border-color: #f7941d; }
-                .text-chotam-red { color: #f15a24; } .bg-chotam-red { background-color: #f15a24; } .border-chotam-red { border-color: #f15a24; }
-                .text-chotam-black { color: #1a1a1a; } .bg-chotam-black { background-color: #1a1a1a; }
-                
-                @media print {
-                    @page { size: A4; margin: 20mm; }
-                    body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                    .no-print { display: none !important; }
-                    .print-only { display: block !important; }
-                    .print-break-inside-avoid { page-break-inside: avoid; }
-                    .shadow-xl, .shadow-2xl, .shadow-sm { box-shadow: none !important; border: 1px solid #e2e8f0; }
-                    canvas { display: none !important; }
-                }
-                .print-only { display: none; }
-            `}</style>
-
-            {/* כותרת מיוחדת שמופיעה רק ב-PDF */}
-            <div className="print-only text-center mb-10 pb-6 border-b-4 border-chotam-teal">
-                <img src={LOGO_URL} alt="חותם חיים" className="h-24 mx-auto mb-4" />
-                <h1 className="text-4xl font-black text-slate-900 mb-2">סיכום פעילות וקטלוג - חותם חיים</h1>
-                <p className="text-xl text-slate-600">מערכת למידה חדשנית מבית רובוטיקס</p>
-                <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
-                    <p className="font-bold text-lg mb-2">לצפייה בקטלוג המלא והאינטראקטיבי שלנו סרקו את הקוד או היכנסו לקישור:</p>
-                    <a href={catalogUrl} className="text-chotam-teal font-bold" dir="ltr">{catalogUrl}</a>
+            {/* אזור ה-Hero הראשי של דף הבית */}
+            <section id="hero" className="pt-44 pb-24 px-4 max-w-7xl mx-auto flex flex-col items-center justify-center text-center space-y-8 animate-fade-in">
+                <div className="space-y-4">
+                    <h1 className="text-5xl md:text-7xl font-black text-slate-900 leading-tight">
+                        טכנולוגיה עם <span className="text-cyan-600 bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent">נשמה</span>
+                    </h1>
+                    <p className="text-xl md:text-2xl font-bold text-slate-500 max-w-3xl mx-auto leading-relaxed">
+                        חותם חיים מבית רובוטיקס - החברה המובילה בישראל לחדשנות פדגוגית, הקמת מרחבי STEM ופיתוח הלומד האוטונומי.
+                    </p>
                 </div>
-            </div>
 
-            <LandingHeader onLoginClick={onLoginClick} />
-            <LandingContent />
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                    <a href="#contact" className="bg-cyan-600 text-white px-10 py-4 rounded-full font-black text-lg shadow-xl hover:scale-105 transition duration-300">סיור ב"חלומציאות"</a>
+                    <button onClick={onLoginClick} className="bg-slate-900 hover:bg-purple-600 text-white px-10 py-4 rounded-full font-black text-lg shadow-xl hover:scale-105 transition duration-300">כניסה למערכת ה-LMS</button>
+                </div>
+                
+                {/* אלמנט עיצובי מרכזי */}
+                <div className="w-full max-w-4xl pt-12 relative">
+                    <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white z-10 pointer-events-none" />
+                    <div className="bg-slate-100 rounded-[3rem] p-4 shadow-2xl border border-slate-200/60 overflow-hidden aspectRatio-video relative group">
+                        <div className="absolute inset-0 bg-slate-950/40 flex items-center justify-center text-white text-6xl font-black select-none opacity-100 group-hover:opacity-0 transition-opacity duration-500 z-20">▶ סרטון תדמית</div>
+                        <iframe title="robotix-promo" className="w-full h-[450px] rounded-[2.2rem]" src="https://www.youtube.com/embed/OHLMTgHl6cc?modestbranding=1&rel=0" allowFullScreen />
+                    </div>
+                </div>
+            </section>
+
+            {/* אזור יצירת קשר מהיר בתחתית דף הבית */}
+            <section id="contact" className="bg-slate-50 border-t border-slate-100 py-16 px-4">
+                <div className="max-w-4xl mx-auto text-center space-y-6">
+                    <h2 className="text-3xl font-black text-slate-900">הצטרפו למהפכת הלמידה האוטונומית</h2>
+                    <p className="text-slate-500 font-bold max-w-lg mx-auto text-sm">השאירו פרטים ונציג פדגוגי מבית רובוטיקס יחזור אליכם עם הצעה מותאמת אישית לבית הספר או לרשות המקומית שלכם.</p>
+                    <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto pt-4">
+                        <input type="email" placeholder="הקלד כתובת אימייל רשמית..." className="flex-grow p-4 rounded-2xl border-2 border-slate-200 outline-none focus:border-cyan-500 font-bold text-center transition-colors bg-white shadow-sm" />
+                        <button onClick={() => alert('תודה! פרטיך התקבלו במערכת רובוטיקס.')} className="bg-slate-900 hover:bg-cyan-600 text-white px-8 py-4 rounded-2xl font-black shadow-lg transition-colors">צרו קשר עכשיו</button>
+                    </div>
+                </div>
+            </section>
         </div>
     );
 }
