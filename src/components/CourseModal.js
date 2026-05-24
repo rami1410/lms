@@ -44,7 +44,6 @@ export default function CourseModal({ onClose, toast, geminiKey, institutions = 
 
         setIsGenerating(true);
         
-        // פירוק מחרוזת השרשור בצורה נקייה ומאובטחת למניעת שגיאות סינטקס
         const promptText = "אתה מומחה לפדגוגיה חדשנית בחברת חותם חיים מבית רובוטיקס. " +
             "כתוב תיאור שיווקי, מרתק ומקצועי (עד 4-5 פסקאות קצרות) עבור קורס בשם: \"" + name + "\". " +
             "הקורס מיועד לתלמידים מכיתה " + fromGrade + " עד " + toGrade + ". " +
@@ -180,7 +179,7 @@ export default function CourseModal({ onClose, toast, geminiKey, institutions = 
                                             type="button"
                                             onClick={() => handleFieldToggle(field)}
                                             className={`px-3 py-1.5 rounded-full text-sm font-bold border-2 transition-colors ${isSelected ? 'border-purple-600 bg-purple-50 text-purple-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
-                                            {field
+                                            {field}
                                         </button>
                                     );
                                 })}
