@@ -13,7 +13,8 @@ import CompassView from './components/CompassView';
 import FloatingBot from './components/FloatingBot';
 import LandingPage from './components/LandingPage';
 import AccessibilityWidget from './components/AccessibilityWidget'; 
-import CoursesDashboard from './components/CoursesDashboard'; // הרכיב החדש שיצרנו!
+import CoursesDashboard from './components/CoursesDashboard';
+import AboutView from './components/AboutView'; // הייבוא של דף אודותינו החדש
 import { onSnapshot, collection, doc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
@@ -73,7 +74,6 @@ export default function App() {
     const t = (key) => i18n[lang]?.[key] || key;
     const direction = i18n[lang]?.dir || 'rtl';
 
-    // סינון הקורסים לפי הרשאות המוסד (לפני שמעבירים אותם הלאה)
     const getPermittedCourses = () => {
         if (viewMode === 'admin' || viewMode === 'teacher') return localCourses;
         const inst = localInstitutions.find(i => i.id === currentUser.institutionId);
@@ -153,9 +153,12 @@ export default function App() {
                     <CourseView course={viewingCourse} onBack={() => setViewingCourse(null)} toast={setToast} isAdmin={viewMode === 'admin' || viewMode === 'teacher'} userId={currentUser.id} userProgress={userProgress[viewingCourse.id] || {}} />
                 ) : activeSection === 'compass' ? (
                     <CompassView currentUser={currentUser} viewMode={viewMode} courses={getPermittedCourses()} users={localUsers} allProgress={allProgress} />
-                ) : activeSection === 'admin' && (
+                ) : activeSection === 'admin' ? (
                     <AdminPanel users={viewMode === 'teacher' ? localUsers.filter(u => u.institutionId === currentUser.institutionId) : localUsers} institutions={localInstitutions} courses={localCourses} toast={setToast} isAdmin={viewMode === 'admin'} onEditUser={(u) => setActiveModal({type:'student', data: u})} onEditInst={(i) => setActiveModal({type:'inst', data: i})} onEditCourse={(c) => setActiveModal({type:'course', data: c})} />
-                )}
+                ) : activeSection === 'about' ? (
+                    /* הצגה מלאה ומאובטחת של דף אודותינו החדש עם פונקציית חזרה לדף הבית */
+                    <AboutView onBack={() => setActiveSection('courses')} />
+                ) : null}
             </main>
 
             {activeModal?.type === 'course' && <CourseModal onClose={() => setActiveModal(null)} toast={setToast} geminiKey={process.env.REACT_APP_GEMINI_API_KEY} existingCourses={localCourses} institutions={localInstitutions} initialData={activeModal.data} />}
