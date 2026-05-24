@@ -38,6 +38,59 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
         );
     }
 
+    // פונקציית עזר חכמה לרינדור וניקוי סרטוני יוטיוב
+    const renderVideo = (lesson) => {
+        let rawUrl = lesson.embedUrl || lesson.url;
+        if (!rawUrl) return null;
+
+        let cleanUrl = rawUrl;
+        let isYouTube = false;
+        
+        if (rawUrl.includes('youtube.com') || rawUrl.includes('youtu.be')) {
+            isYouTube = true;
+            let vidId = '';
+            if (rawUrl.includes('watch?v=')) vidId = rawUrl.split('watch?v=')[1].split('&')[0];
+            else if (rawUrl.includes('youtu.be/')) vidId = rawUrl.split('youtu.be/')[1].split('?')[0];
+            else if (rawUrl.includes('embed/')) vidId = rawUrl.split('embed/')[1].split('?')[0];
+            
+            if (vidId) {
+                // controls=0 חוסם את הסרגל התחתון לחלוטין!
+                cleanUrl = `https://www.youtube-nocookie.com/embed/${vidId}?rel=0&modestbranding=1&showinfo=0&controls=0&disablekb=1&playsinline=1&iv_load_policy=3`;
+            }
+        } else {
+            cleanUrl = rawUrl.replace('watch?v=', 'embed/');
+        }
+
+        return (
+            <div className="relative w-full rounded-3xl shadow-xl border overflow-hidden bg-black group" style={{ paddingTop: '56.25%' }}>
+                {/* תגית Sandbox חוסמת את הדפדפן מלפתוח אתר חיצוני או חלון חדש */}
+                <iframe 
+                    title="video-player" 
+                    className="absolute top-0 left-0 w-full h-full" 
+                    src={cleanUrl} 
+                    sandbox="allow-scripts allow-same-origin allow-presentation"
+                    allowFullScreen 
+                />
+                
+                {/* חומות זכוכית: חוסמות לחלוטין לחיצות על קצוות הסרטון במקרה של יוטיוב */}
+                {isYouTube && (
+                    <>
+                        <div className="absolute top-0 left-0 w-full h-24 z-10" style={{background: 'transparent'}}></div>
+                        <div className="absolute bottom-0 right-0 w-40 h-20 z-10" style={{background: 'transparent'}}></div>
+                        <div className="absolute bottom-0 left-0 w-40 h-20 z-10" style={{background: 'transparent'}}></div>
+                    </>
+                )}
+                
+                {/* רמז חזותי קטן שמופיע כשהעכבר על הסרטון */}
+                {isYouTube && (
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white/80 px-4 py-2 rounded-full text-xs font-bold pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-20 backdrop-blur-sm">
+                        הקלק על הסרטון להפעלה/עצירה
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     return (
         <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
             {isEditMode ? (
@@ -93,36 +146,21 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
                         {activeLesson.type === 'html' ? (
                             <div className="bg-white p-4 rounded-3xl border shadow-sm" dangerouslySetInnerHTML={{ __html: activeLesson.content }} />
                         ) : activeLesson.type === 'video' && (activeLesson.embedUrl || activeLesson.url) ? (
-                            (() => {
-                                let rawUrl = activeLesson.embedUrl || activeLesson.url;
-                                let cleanUrl = rawUrl;
-                                
-                                if (rawUrl.includes('youtube.com') || rawUrl.includes('youtu.be')) {
-                                    let vidId = '';
-                                    if (rawUrl.includes('watch?v=')) vidId = rawUrl.split('watch?v=')[1].split('&')[0];
-                                    else if (rawUrl.includes('youtu.be/')) vidId = rawUrl.split('youtu.be/')[1].split('?')[0];
-                                    else if (rawUrl.includes('embed/')) vidId = rawUrl.split('embed/')[1].split('?')[0];
-                                    
-                                    if (vidId) {
-                                        cleanUrl = `https://www.youtube-nocookie.com/embed/${vidId}?rel=0&modestbranding=1&showinfo=0&controls=1&disablekb=1&playsinline=1&iv_load_policy=3&fs=0`;
-                                    }
-                                } else {
-                                    cleanUrl = rawUrl.replace('watch?v=', 'embed/');
-                                }
-
-                                return (
-                                    <div className="relative w-full rounded-3xl shadow-xl border overflow-hidden bg-black group" style={{ paddingTop: '56.25%' }}>
-                                        {/* תגית Sandbox חוסמת את הדפדפן מלפתוח אתר חיצוני או חלון חדש */}
-                                        <iframe 
-                                            title="video-player" 
-                                            className="absolute top-0 left-0 w-full h-full" 
-                                            src={cleanUrl} 
-                                            sandbox="allow-scripts allow-same-origin allow-presentation"
-                                            allowFullScreen 
-                                        />
-                                        
-                                        {/* חומות זכוכית: הגנה עליונה ותחתונה בשני הצדדים */}
-                                        <div className="absolute top-0 left-0 w-full h-20 bg-transparent z-10" title="וידאו מאובטח"></div>
-                                        <div className="absolute bottom-0 right-0 w-24 h-16 bg-transparent z-10"></div>
-                                        <div className="absolute bottom-0 left-0 w-32 h-16 bg-transparent z-10"></div>
-                                    </div>
+                            renderVideo(activeLesson)
+                        ) : activeLesson.type === 'link' ? (
+                            <div className="bg-slate-50 p-12 rounded-3xl border-2 border-dashed flex flex-col items-center justify-center text-center">
+                                <span className="text-6xl mb-4">🔗</span>
+                                <h3 className="text-2xl font-black text-slate-800 mb-6">קישור חיצוני / משאב עזר</h3>
+                                <a href={activeLesson.url || activeLesson.embedUrl} target="_blank" rel="noreferrer" className="bg-purple-600 text-white px-8 py-4 rounded-full font-black text-lg hover:bg-purple-700 hover:scale-105 transition-all shadow-xl">לחץ כאן לפתיחת הקישור בחלון חדש</a>
+                            </div>
+                        ) : (activeLesson.embedUrl || activeLesson.url) && activeLesson.type !== 'text' ? (
+                            <iframe title="c" className="w-full h-[600px] rounded-3xl border shadow-xl" src={activeLesson.embedUrl || activeLesson.url} allowFullScreen />
+                        ) : (
+                            <div className="prose prose-lg max-w-none text-right bg-white p-8 rounded-3xl border shadow-sm whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: activeLesson.content || '' }} />
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
