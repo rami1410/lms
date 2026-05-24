@@ -14,7 +14,7 @@ import FloatingBot from './components/FloatingBot';
 import LandingPage from './components/LandingPage';
 import AccessibilityWidget from './components/AccessibilityWidget'; 
 import CoursesDashboard from './components/CoursesDashboard';
-import AboutView from './components/AboutView'; // הייבוא של דף אודותינו החדש
+import AboutView from './components/AboutView'; // הייבוא החדש של דף אודותינו!
 import { onSnapshot, collection, doc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
@@ -139,14 +139,7 @@ export default function App() {
 
             <main className="p-8 max-w-7xl mx-auto">
                 {!viewingCourse && activeSection === 'courses' && (
-                    <CoursesDashboard 
-                        permittedCourses={getPermittedCourses()} 
-                        userProgress={userProgress} 
-                        viewMode={viewMode} 
-                        setViewingCourse={setViewingCourse} 
-                        setActiveModal={setActiveModal} 
-                        t={t} 
-                    />
+                    <CoursesDashboard permittedCourses={getPermittedCourses()} userProgress={userProgress} viewMode={viewMode} setViewingCourse={setViewingCourse} setActiveModal={setActiveModal} t={t} />
                 )}
 
                 {viewingCourse ? (
@@ -156,7 +149,7 @@ export default function App() {
                 ) : activeSection === 'admin' ? (
                     <AdminPanel users={viewMode === 'teacher' ? localUsers.filter(u => u.institutionId === currentUser.institutionId) : localUsers} institutions={localInstitutions} courses={localCourses} toast={setToast} isAdmin={viewMode === 'admin'} onEditUser={(u) => setActiveModal({type:'student', data: u})} onEditInst={(i) => setActiveModal({type:'inst', data: i})} onEditCourse={(c) => setActiveModal({type:'course', data: c})} />
                 ) : activeSection === 'about' ? (
-                    /* הצגה מלאה ומאובטחת של דף אודותינו החדש עם פונקציית חזרה לדף הבית */
+                    /* הצגה של דף אודותינו החדש והמעוצב, עם פונקציית חזרה לדף הבית */
                     <AboutView onBack={() => setActiveSection('courses')} />
                 ) : null}
             </main>
