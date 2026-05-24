@@ -38,7 +38,7 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
         );
     }
 
-    // פונקציית עזר חכמה לרינדור וניקוי סרטוני יוטיוב
+    // פונקציית עזר חכמה המבצעת Crop (חיתוך) לשוליים של יוטיוב
     const renderVideo = (lesson) => {
         let rawUrl = lesson.embedUrl || lesson.url;
         if (!rawUrl) return null;
@@ -54,7 +54,7 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
             else if (rawUrl.includes('embed/')) vidId = rawUrl.split('embed/')[1].split('?')[0];
             
             if (vidId) {
-                // controls=1 מחזיר את הסרגל העדין אך מעלים את המלבן הלבן הענק!
+                // נטען כרגיל כדי למנוע את הודעת השגיאה הלבנה של גוגל
                 cleanUrl = `https://www.youtube-nocookie.com/embed/${vidId}?rel=0&modestbranding=1&showinfo=0&controls=1&disablekb=1&playsinline=1&iv_load_policy=3`;
             }
         } else {
@@ -62,21 +62,28 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
         }
 
         return (
+            /* מסגרת האב מחזיקה פרופורציה של 16:9 ומחביאה שוליים חורגים */
             <div className="relative w-full rounded-3xl shadow-xl border overflow-hidden bg-black group" style={{ paddingTop: '56.25%' }}>
-                {/* תגית Sandbox חוסמת פיזית מהדפדפן את היכולת לפתוח טאבים חדשים או פופ-אפים */}
                 <iframe 
                     title="video-player" 
-                    className="absolute top-0 left-0 w-full h-full" 
+                    className="absolute" 
                     src={cleanUrl} 
                     sandbox="allow-scripts allow-same-origin allow-presentation"
                     allowFullScreen 
+                    /* טריק ה-Crop: מותח את הנגן מעבר לגבולות ומעלים את הלוגו והכותרת לחלוטין */
+                    style={{
+                        width: '102%',
+                        height: '114%',
+                        top: '-7%',
+                        left: '-1%',
+                    }}
                 />
                 
-                {/* חומות זכוכית: חוסמות את האזורים הלחיצים של יוטיוב */}
+                {/* שכבות מגן בלתי נראות למניעת כל אינטראקציה עם השוליים הנסתרים */}
                 {isYouTube && (
                     <>
-                        <div className="absolute top-0 left-0 w-full h-16 bg-transparent z-10" title="וידאו מאובטח"></div>
-                        <div className="absolute bottom-0 right-0 w-20 h-12 bg-transparent z-10"></div>
+                        <div className="absolute top-0 left-0 w-full h-12 z-10" style={{background: 'transparent'}}></div>
+                        <div className="absolute bottom-0 left-0 w-full h-12 z-10" style={{background: 'transparent'}}></div>
                     </>
                 )}
             </div>
