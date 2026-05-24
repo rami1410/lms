@@ -12,7 +12,7 @@ export default function ContactForm() {
         notes: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [submitStatus, setSubmitStatus] = useState(null); // 'success' | 'error'
+    const [submitStatus, setSubmitStatus] = useState(null);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -68,7 +68,7 @@ export default function ContactForm() {
                 throw new Error('Server Error');
             }
         } catch (error) {
-            console.error("Error sending form:", error);
+            console.error("Error:", error);
             setSubmitStatus('error');
         } finally {
             setIsSubmitting(false);
@@ -85,58 +85,12 @@ export default function ContactForm() {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4 w-full">
-                    <input 
-                        type="text" 
-                        name="organization"
-                        value={formData.organization}
-                        onChange={handleChange}
-                        placeholder="שם הארגון" 
-                        className="w-full bg-white border-2 border-slate-800 p-4 rounded-xl outline-none font-bold text-slate-700 text-right text-sm md:text-base focus:border-cyan-500" 
-                    />
-                    <input 
-                        type="text" 
-                        name="fullName"
-                        value={formData.fullName}
-                        onChange={handleChange}
-                        placeholder="שם מלא *" 
-                        required
-                        className="w-full bg-white border-2 border-slate-800 p-4 rounded-xl outline-none font-bold text-slate-700 text-right text-sm md:text-base focus:border-cyan-500" 
-                    />
-                    <input 
-                        type="text" 
-                        name="role"
-                        value={formData.role}
-                        onChange={handleChange}
-                        placeholder="תפקיד בארגון" 
-                        className="w-full bg-white border-2 border-slate-800 p-4 rounded-xl outline-none font-bold text-slate-700 text-right text-sm md:text-base focus:border-cyan-500" 
-                    />
-                    <input 
-                        type="email" 
-                        name="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        placeholder="כתובת אימייל *" 
-                        required
-                        className="w-full bg-white border-2 border-slate-800 p-4 rounded-xl outline-none font-bold text-slate-700 text-left text-sm md:text-base focus:border-cyan-500" 
-                        dir="ltr"
-                    />
-                    <input 
-                        type="tel" 
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        placeholder="טלפון *" 
-                        required
-                        className="w-full bg-white border-2 border-slate-800 p-4 rounded-xl outline-none font-bold text-slate-700 text-right text-sm md:text-base focus:border-cyan-500" 
-                    />
-                    <textarea 
-                        name="notes"
-                        value={formData.notes}
-                        onChange={handleChange}
-                        rows="4"
-                        placeholder="משהו נוסף שחשוב שנדע?" 
-                        className="w-full bg-white border-2 border-slate-800 p-4 rounded-xl outline-none font-bold text-slate-700 text-right text-sm md:text-base focus:border-cyan-500 resize-none"
-                    />
+                    <input type="text" name="organization" value={formData.organization} onChange={handleChange} placeholder="שם הארגון" className="w-full bg-white border-2 border-slate-800 p-4 rounded-xl outline-none font-bold text-slate-700 text-right text-sm md:text-base focus:border-cyan-500" />
+                    <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} placeholder="שם מלא *" required className="w-full bg-white border-2 border-slate-800 p-4 rounded-xl outline-none font-bold text-slate-700 text-right text-sm md:text-base focus:border-cyan-500" />
+                    <input type="text" name="role" value={formData.role} onChange={handleChange} placeholder="תפקיד בארגון" className="w-full bg-white border-2 border-slate-800 p-4 rounded-xl outline-none font-bold text-slate-700 text-right text-sm md:text-base focus:border-cyan-500" />
+                    <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="כתובת אימייל *" required className="w-full bg-white border-2 border-slate-800 p-4 rounded-xl outline-none font-bold text-slate-700 text-left text-sm md:text-base focus:border-cyan-500" dir="ltr" />
+                    <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="טלפון *" required className="w-full bg-white border-2 border-slate-800 p-4 rounded-xl outline-none font-bold text-slate-700 text-right text-sm md:text-base focus:border-cyan-500" />
+                    <textarea name="notes" value={formData.notes} onChange={handleChange} rows="4" placeholder="משהו נוסף שחשוב שנדע?" className="w-full bg-white border-2 border-slate-800 p-4 rounded-xl outline-none font-bold text-slate-700 text-right text-sm md:text-base focus:border-cyan-500 resize-none" />
 
                     {submitStatus === 'success' && (
                         <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 p-4 rounded-xl font-bold text-center text-sm">
@@ -150,11 +104,7 @@ export default function ContactForm() {
                     )}
 
                     <div className="flex justify-center pt-2">
-                        <button 
-                            type="submit" 
-                            disabled={isSubmitting}
-                            className="bg-cyan-500 hover:bg-cyan-600 text-white font-black text-lg md:text-xl py-3.5 rounded-full shadow-xl hover:scale-105 transition-all disabled:opacity-50 w-full sm:w-64 text-center cursor-pointer"
-                        >
+                        <button type="submit" disabled={isSubmitting} className="bg-cyan-500 hover:bg-cyan-600 text-white font-black text-lg md:text-xl py-3.5 rounded-full shadow-xl hover:scale-105 transition-all disabled:opacity-50 w-full sm:w-64 text-center cursor-pointer">
                             {isSubmitting ? 'שולח...' : 'שליחה'}
                         </button>
                     </div>
