@@ -14,7 +14,7 @@ import FloatingBot from './components/FloatingBot';
 import LandingPage from './components/LandingPage';
 import AccessibilityWidget from './components/AccessibilityWidget'; 
 import CoursesDashboard from './components/CoursesDashboard';
-import AboutView from './components/AboutView'; // מנוע הדפים הדינמי החדש שלנו
+import AboutView from './components/AboutView';
 import { onSnapshot, collection, doc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
@@ -40,9 +40,6 @@ export default function App() {
     const [viewingCourse, setViewingCourse] = useState(null);
     const [isRegistering, setIsRegistering] = useState(false);
     const [toast, setToast] = useState('');
-    
-    // סטייט ניתוב חכם עבור 11 הדפים החדשים של אזור האודות והשירותים
-    const [publicSection, setPublicSection] = useState(null);
 
     useEffect(() => {
         if (auth) signInAnonymously(auth).catch(()=>{});
@@ -112,19 +109,10 @@ export default function App() {
         }
     };
 
-    // ניתוב לאורחים ומבקרים באתר החיצוני
     if (!currentUser && showLanding) {
-        if (publicSection) {
-            return (
-                <>
-                    <AboutView section={publicSection} onBack={() => setPublicSection(null)} />
-                    <AccessibilityWidget />
-                </>
-            );
-        }
         return (
             <>
-                <LandingPage onLoginClick={() => setShowLanding(false)} onNavClick={(sec) => setPublicSection(sec)} />
+                <LandingPage onLoginClick={() => setShowLanding(false)} />
                 <AccessibilityWidget />
             </>
         );
@@ -149,7 +137,7 @@ export default function App() {
         <div dir={direction} className={`min-h-screen bg-slate-50 text-slate-900 font-assistant ${direction === 'rtl' ? 'text-right' : 'text-left'}`}>
             <Navigation currentUser={currentUser} lang={lang} setLang={setLang} viewMode={viewMode} setViewMode={setViewMode} activeSection={activeSection} setActiveSection={setActiveSection} viewingCourse={viewingCourse} setViewingCourse={setViewingCourse} setActiveModal={setActiveModal} t={t} direction={direction} onLogout={() => { setCurrentUser(null); setShowLanding(true); }} LOGO_URL={LOGO_URL} />
 
-            <main className="p-8 max-w-7xl mx-auto">
+            <main className="p-4 md:p-8 max-w-7xl mx-auto">
                 {!viewingCourse && activeSection === 'courses' && (
                     <CoursesDashboard permittedCourses={getPermittedCourses()} userProgress={userProgress} viewMode={viewMode} setViewingCourse={setViewingCourse} setActiveModal={setActiveModal} t={t} />
                 )}
