@@ -97,7 +97,6 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
                                 let rawUrl = activeLesson.embedUrl || activeLesson.url;
                                 let cleanUrl = rawUrl;
                                 
-                                // זיהוי חכם של יוטיוב ובידוד הסרטון
                                 if (rawUrl.includes('youtube.com') || rawUrl.includes('youtu.be')) {
                                     let vidId = '';
                                     if (rawUrl.includes('watch?v=')) vidId = rawUrl.split('watch?v=')[1].split('&')[0];
@@ -105,7 +104,6 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
                                     else if (rawUrl.includes('embed/')) vidId = rawUrl.split('embed/')[1].split('?')[0];
                                     
                                     if (vidId) {
-                                        // פרמטרים מחמירים להסתרת ממשק יוטיוב עד כמה שאפשר
                                         cleanUrl = `https://www.youtube-nocookie.com/embed/${vidId}?rel=0&modestbranding=1&showinfo=0&controls=1&disablekb=1&playsinline=1&iv_load_policy=3&fs=0`;
                                     }
                                 } else {
@@ -113,34 +111,18 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
                                 }
 
                                 return (
-                                    <div className="relative w-full aspect-video rounded-3xl shadow-xl border overflow-hidden bg-black group">
+                                    <div className="relative w-full rounded-3xl shadow-xl border overflow-hidden bg-black group" style={{ paddingTop: '56.25%' }}>
+                                        {/* תגית Sandbox חוסמת את הדפדפן מלפתוח אתר חיצוני או חלון חדש */}
                                         <iframe 
                                             title="video-player" 
-                                            className="w-full h-full" 
+                                            className="absolute top-0 left-0 w-full h-full" 
                                             src={cleanUrl} 
+                                            sandbox="allow-scripts allow-same-origin allow-presentation"
                                             allowFullScreen 
                                         />
-                                        {/* שכבת הגנה עליונה - חומת זכוכית שחוסמת לחיצה על כותרת הסרטון וסמלי השיתוף */}
+                                        
+                                        {/* חומות זכוכית: הגנה עליונה ותחתונה בשני הצדדים */}
                                         <div className="absolute top-0 left-0 w-full h-20 bg-transparent z-10" title="וידאו מאובטח"></div>
-                                        {/* שכבת הגנה תחתונה ימנית - חומת זכוכית שחוסמת לחיצה על הלוגו של יוטיוב למטה */}
-                                        <div className="absolute bottom-0 right-0 w-32 h-16 bg-transparent z-10"></div>
+                                        <div className="absolute bottom-0 right-0 w-24 h-16 bg-transparent z-10"></div>
+                                        <div className="absolute bottom-0 left-0 w-32 h-16 bg-transparent z-10"></div>
                                     </div>
-                                );
-                            })()
-                        ) : activeLesson.type === 'link' ? (
-                            <div className="bg-slate-50 p-12 rounded-3xl border-2 border-dashed flex flex-col items-center justify-center text-center">
-                                <span className="text-6xl mb-4">🔗</span>
-                                <h3 className="text-2xl font-black text-slate-800 mb-6">קישור חיצוני / משאב עזר</h3>
-                                <a href={activeLesson.url || activeLesson.embedUrl} target="_blank" rel="noreferrer" className="bg-purple-600 text-white px-8 py-4 rounded-full font-black text-lg hover:bg-purple-700 hover:scale-105 transition-all shadow-xl">לחץ כאן לפתיחת הקישור בחלון חדש</a>
-                            </div>
-                        ) : (activeLesson.embedUrl || activeLesson.url) && activeLesson.type !== 'text' ? (
-                            <iframe title="c" className="w-full h-[600px] rounded-3xl border shadow-xl" src={activeLesson.embedUrl || activeLesson.url} allowFullScreen />
-                        ) : (
-                            <div className="prose prose-lg max-w-none text-right bg-white p-8 rounded-3xl border shadow-sm whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: activeLesson.content || '' }} />
-                        )}
-                    </div>
-                </>
-            )}
-        </div>
-    );
-}
