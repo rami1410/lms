@@ -14,7 +14,7 @@ import FloatingBot from './components/FloatingBot';
 import LandingPage from './components/LandingPage';
 import AccessibilityWidget from './components/AccessibilityWidget'; 
 import CoursesDashboard from './components/CoursesDashboard';
-import AboutView from './components/AboutView'; // הייבוא החדש של דף אודותינו!
+import AboutView from './components/AboutView'; // מנוע הדפים הדינמי החדש שלנו
 import { onSnapshot, collection, doc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
@@ -40,6 +40,9 @@ export default function App() {
     const [viewingCourse, setViewingCourse] = useState(null);
     const [isRegistering, setIsRegistering] = useState(false);
     const [toast, setToast] = useState('');
+    
+    // סטייט ניתוב חכם עבור 11 הדפים החדשים של אזור האודות והשירותים
+    const [publicSection, setPublicSection] = useState(null);
 
     useEffect(() => {
         if (auth) signInAnonymously(auth).catch(()=>{});
@@ -109,10 +112,19 @@ export default function App() {
         }
     };
 
+    // ניתוב לאורחים ומבקרים באתר החיצוני
     if (!currentUser && showLanding) {
+        if (publicSection) {
+            return (
+                <>
+                    <AboutView section={publicSection} onBack={() => setPublicSection(null)} />
+                    <AccessibilityWidget />
+                </>
+            );
+        }
         return (
             <>
-                <LandingPage onLoginClick={() => setShowLanding(false)} />
+                <LandingPage onLoginClick={() => setShowLanding(false)} onNavClick={(sec) => setPublicSection(sec)} />
                 <AccessibilityWidget />
             </>
         );
@@ -149,8 +161,7 @@ export default function App() {
                 ) : activeSection === 'admin' ? (
                     <AdminPanel users={viewMode === 'teacher' ? localUsers.filter(u => u.institutionId === currentUser.institutionId) : localUsers} institutions={localInstitutions} courses={localCourses} toast={setToast} isAdmin={viewMode === 'admin'} onEditUser={(u) => setActiveModal({type:'student', data: u})} onEditInst={(i) => setActiveModal({type:'inst', data: i})} onEditCourse={(c) => setActiveModal({type:'course', data: c})} />
                 ) : activeSection === 'about' ? (
-                    /* הצגה של דף אודותינו החדש והמעוצב, עם פונקציית חזרה לדף הבית */
-                    <AboutView onBack={() => setActiveSection('courses')} />
+                    <AboutView section="who_we_are" onBack={() => setActiveSection('courses')} />
                 ) : null}
             </main>
 
