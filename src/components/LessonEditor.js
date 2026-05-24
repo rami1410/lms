@@ -54,8 +54,8 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
             else if (rawUrl.includes('embed/')) vidId = rawUrl.split('embed/')[1].split('?')[0];
             
             if (vidId) {
-                // controls=0 חוסם את הסרגל התחתון לחלוטין!
-                cleanUrl = `https://www.youtube-nocookie.com/embed/${vidId}?rel=0&modestbranding=1&showinfo=0&controls=0&disablekb=1&playsinline=1&iv_load_policy=3`;
+                // controls=1 מחזיר את הסרגל העדין אך מעלים את המלבן הלבן הענק!
+                cleanUrl = `https://www.youtube-nocookie.com/embed/${vidId}?rel=0&modestbranding=1&showinfo=0&controls=1&disablekb=1&playsinline=1&iv_load_policy=3`;
             }
         } else {
             cleanUrl = rawUrl.replace('watch?v=', 'embed/');
@@ -63,7 +63,7 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
 
         return (
             <div className="relative w-full rounded-3xl shadow-xl border overflow-hidden bg-black group" style={{ paddingTop: '56.25%' }}>
-                {/* תגית Sandbox חוסמת את הדפדפן מלפתוח אתר חיצוני או חלון חדש */}
+                {/* תגית Sandbox חוסמת פיזית מהדפדפן את היכולת לפתוח טאבים חדשים או פופ-אפים */}
                 <iframe 
                     title="video-player" 
                     className="absolute top-0 left-0 w-full h-full" 
@@ -72,20 +72,12 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
                     allowFullScreen 
                 />
                 
-                {/* חומות זכוכית: חוסמות לחלוטין לחיצות על קצוות הסרטון במקרה של יוטיוב */}
+                {/* חומות זכוכית: חוסמות את האזורים הלחיצים של יוטיוב */}
                 {isYouTube && (
                     <>
-                        <div className="absolute top-0 left-0 w-full h-24 z-10" style={{background: 'transparent'}}></div>
-                        <div className="absolute bottom-0 right-0 w-40 h-20 z-10" style={{background: 'transparent'}}></div>
-                        <div className="absolute bottom-0 left-0 w-40 h-20 z-10" style={{background: 'transparent'}}></div>
+                        <div className="absolute top-0 left-0 w-full h-16 bg-transparent z-10" title="וידאו מאובטח"></div>
+                        <div className="absolute bottom-0 right-0 w-20 h-12 bg-transparent z-10"></div>
                     </>
-                )}
-                
-                {/* רמז חזותי קטן שמופיע כשהעכבר על הסרטון */}
-                {isYouTube && (
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white/80 px-4 py-2 rounded-full text-xs font-bold pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-20 backdrop-blur-sm">
-                        הקלק על הסרטון להפעלה/עצירה
-                    </div>
                 )}
             </div>
         );
