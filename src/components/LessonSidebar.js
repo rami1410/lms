@@ -1,120 +1,61 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { LOGO_URL } from '../App';
 
-export default function LessonSidebar({ lessons, activeLesson, setActiveLesson, isEditMode, addLesson, userProgress, getLessonIcon, autoSaveLessons }) {
-    
-    // מצבי גרירה ומשיכה (Drag & Drop)
-    const [draggedIndex, setDraggedIndex] = useState(null);
-    const [dragOverIndex, setDragOverIndex] = useState(null);
-
-    const handleDragStart = (e, index) => {
-        if (!isEditMode) return;
-        setDraggedIndex(index);
-        e.dataTransfer.effectAllowed = "move";
-        // הוספת מראה שקוף לאלמנט הנגרר
-        setTimeout(() => e.target.classList.add('opacity-50'), 0);
-    };
-
-    const handleDragOver = (e, index) => {
-        e.preventDefault();
-        if (!isEditMode) return;
-        setDragOverIndex(index);
-    };
-
-    const handleDrop = (e, targetIndex) => {
-        e.preventDefault();
-        if (!isEditMode || draggedIndex === null) return;
-        
-        const newLessons = [...lessons];
-        const draggedItem = newLessons[draggedIndex];
-        
-        // הסרה מהמקום הישן והכנסה במיקום החדש
-        newLessons.splice(draggedIndex, 1);
-        newLessons.splice(targetIndex, 0, draggedItem);
-        
-        setDraggedIndex(null);
-        setDragOverIndex(null);
-        
-        // מעדכן את מצב ה-UI ושומר לשרת מיד
-        autoSaveLessons(newLessons);
-    };
-
-    const handleDragEnd = (e) => {
-        e.target.classList.remove('opacity-50');
-        setDraggedIndex(null);
-        setDragOverIndex(null);
-    };
+export default function LandingHeader({ onLoginClick, onNavClick }) {
+    const catalogUrl = "https://heyzine.com/flip-book/426cdf50eb.html";
 
     return (
-        <div className="w-80 border-l p-6 overflow-y-auto bg-slate-50 flex flex-col relative z-20">
-            <h3 className="font-black mb-6 text-slate-400 text-[10px] uppercase tracking-widest">תכני הקורס</h3>
-            
-            <div className="space-y-2 flex-grow pb-10">
-                {lessons.map((l, index) => {
-                    const isChapter = l.type === 'chapter';
+        <header className="fixed top-0 w-full bg-white/90 backdrop-blur-md shadow-sm z-[100] no-print">
+            <div className="max-w-7xl mx-auto px-4 flex justify-between items-center h-24">
+                
+                <div className="flex items-center gap-6">
+                    {/* לוגו החברה המשמש כקישור קבוע לאיפוס וחזרה לעמוד הבית החיצוני */}
+                    <a href="https://robotixlms.vercel.app/" className="transition-transform hover:scale-105 shrink-0 block">
+                        <img src={LOGO_URL} alt="לוגו חותם חיים" className="h-16 md:h-20" />
+                    </a>
                     
-                    return (
-                        <div 
-                            key={l.id}
-                            draggable={isEditMode}
-                            onDragStart={(e) => handleDragStart(e, index)}
-                            onDragOver={(e) => handleDragOver(e, index)}
-                            onDrop={(e) => handleDrop(e, index)}
-                            onDragEnd={handleDragEnd}
-                            className={`
-                                relative transition-all
-                                ${isEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
-                                ${dragOverIndex === index ? 'border-t-4 border-purple-500 pt-1' : ''}
-                            `}
-                        >
-                            <button 
-                                onClick={() => setActiveLesson(l)} 
-                                className={`w-full text-right flex items-center transition-all ${
-                                    isChapter 
-                                        ? `p-3 mt-4 mb-2 rounded-xl border-b-2 font-black text-lg ${activeLesson?.id === l.id ? 'bg-slate-800 text-white border-slate-900' : 'bg-slate-200 text-slate-800 border-slate-300 hover:bg-slate-300'}` 
-                                        : `p-4 rounded-2xl border ${activeLesson?.id === l.id ? 'bg-purple-600 text-white shadow-lg border-purple-600' : 'bg-white text-slate-600 border-slate-200 hover:border-purple-300 hover:shadow-sm'}`
-                                }`}
-                            >
-                                {/* אייקון משיכה מצב עריכה */}
-                                {isEditMode && <span className="mr-2 text-slate-400 cursor-grab opacity-50 text-xs">↕</span>}
-                                
-                                {!isChapter && (
-                                    <div className={`w-4 h-4 ml-3 rounded-full border-2 flex items-center justify-center shrink-0 ${userProgress[l.id] ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'}`}>
-                                        {userProgress[l.id] && '✓'}
-                                    </div>
-                                )}
-                                
-                                {getLessonIcon(l.type)}
-                                <span className={`text-sm flex-grow truncate ${isChapter ? 'font-black' : 'font-bold'}`}>{l.title}</span>
-                                {l.isSmartContent && <span className="text-[10px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full mr-2 font-black">AI</span>}
-                            </button>
+                    <nav className="hidden lg:flex gap-8 text-sm font-bold text-slate-800 tracking-widest uppercase items-center" dir="rtl">
+                        
+                        {/* 1. תפריט אודותינו המדויק והחדש הכולל חלוקה ל-5 דפים פנימיים */}
+                        <div className="relative group py-4">
+                            <span className="hover:text-cyan-600 transition flex items-center gap-1 cursor-pointer select-none">
+                                אודותינו <span className="text-[10px] opacity-50 relative top-px">▼</span>
+                            </span>
+                            <div className="absolute top-full right-0 w-64 bg-white border border-slate-100 shadow-2xl rounded-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 flex flex-col py-2 overflow-hidden z-50">
+                                <button onClick={() => onNavClick('who_we_are')} className="text-right px-5 py-3 hover:bg-slate-50 hover:text-cyan-600 text-sm transition font-semibold border-b border-slate-50 w-full">1. אז מי אנחנו ?</button>
+                                <button onClick={() => onNavClick('our_work')} className="text-right px-5 py-3 hover:bg-slate-50 hover:text-cyan-600 text-sm transition font-semibold border-b border-slate-50 w-full">2. קצת מהעשייה שלנו</button>
+                                <button onClick={() => onNavClick('skills')} className="text-right px-5 py-3 hover:bg-slate-50 hover:text-cyan-600 text-sm transition font-semibold border-b border-slate-50 w-full">3. מיומנויות ותחומי דעת</button>
+                                <button onClick={() => onNavClick('faq')} className="text-right px-5 py-3 hover:bg-slate-50 hover:text-cyan-600 text-sm transition font-semibold border-b border-slate-50 w-full">4. שאלות ותשובות</button>
+                                <button onClick={() => onNavClick('sitemap')} className="text-right px-5 py-3 hover:bg-slate-50 hover:text-cyan-600 text-sm transition font-semibold w-full">5. מפת האתר</button>
+                            </div>
                         </div>
-                    );
-                })}
-                {lessons.length === 0 && <p className="text-slate-400 text-center font-bold mt-10">אין תכנים בקורס זה.</p>}
-            </div>
 
-            {/* כפתורי הוספת תוכן למנהלים */}
-            {isEditMode && (
-                <div className="sticky bottom-0 bg-slate-50 pt-4 border-t">
-                    <button onClick={() => addLesson('chapter')} className="w-full mb-2 bg-slate-800 text-white p-3 rounded-xl font-bold hover:bg-slate-900 transition-colors shadow-lg">
-                        📁 הוסף פרק חדש
-                    </button>
-                    <div className="grid grid-cols-5 gap-1">
-                        {['video', 'text', 'padlet', 'genially', 'quiz'].map(type => (
-                            <button key={type} onClick={() => addLesson(type)} className="p-2 bg-white border rounded-xl hover:bg-purple-50 text-center text-lg transition-colors shadow-sm" title={`הוסף ${type}`}>
-                                {getLessonIcon(type)}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="grid grid-cols-4 gap-1 mt-1">
-                        {['game', 'file', 'link', 'html'].map(type => (
-                            <button key={type} onClick={() => addLesson(type)} className="p-2 bg-white border rounded-xl hover:bg-purple-50 text-center text-lg transition-colors shadow-sm" title={`הוסף ${type}`}>
-                                {getLessonIcon(type)}
-                            </button>
-                        ))}
-                    </div>
+                        {/* 2. תפריט השירותים שלנו המקצועי המפנה ל-6 דפי שירות חדשים */}
+                        <div className="relative group py-4">
+                            <span className="hover:text-cyan-600 transition flex items-center gap-1 cursor-pointer select-none">
+                                השירותים שלנו <span className="text-[10px] opacity-50 relative top-px">▼</span>
+                            </span>
+                            <div className="absolute top-full right-0 w-64 bg-white border border-slate-100 shadow-2xl rounded-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 flex flex-col py-2 overflow-hidden z-50">
+                                <button onClick={() => onNavClick('catalog_spec')} className="text-right px-5 py-3 hover:bg-slate-50 hover:text-cyan-600 text-sm transition font-semibold border-b border-slate-50 w-full">1. קטלוג מוצרים</button>
+                                <button onClick={() => onNavClick('courses_track')} className="text-right px-5 py-3 hover:bg-slate-50 hover:text-cyan-600 text-sm transition font-semibold border-b border-slate-50 w-full">2. קורסים עם ובלי מדריכים</button>
+                                <button onClick={() => onNavClick('innovation_tour')} className="text-right px-5 py-3 hover:bg-slate-50 hover:text-cyan-600 text-sm transition font-semibold border-b border-slate-50 w-full">3. סיור במתחם החדשנות</button>
+                                <button onClick={() => onNavClick('workshops_spec')} className="text-right px-5 py-3 hover:bg-slate-50 hover:text-cyan-600 text-sm transition font-semibold border-b border-slate-50 w-full">4. סדנאות וימי שיא</button>
+                                <button onClick={() => onNavClick('stem_rooms')} className="text-right px-5 py-3 hover:bg-slate-50 hover:text-cyan-600 text-sm transition font-semibold border-b border-slate-50 w-full">5. עיצוב חדרי STEM</button>
+                                <button onClick={() => onNavClick('london_bett')} className="text-right px-5 py-3 hover:bg-slate-50 hover:text-cyan-600 text-sm transition font-semibold w-full">6. משלחת BETT ללונדון</button>
+                            </div>
+                        </div>
+                    </nav>
                 </div>
-            )}
-        </div>
+
+                <div className="flex gap-4 items-center">
+                    <a href={catalogUrl} target="_blank" rel="noopener noreferrer" className="hidden xl:block bg-lime-600 text-white px-6 py-3 rounded-full font-bold text-sm shadow-xl hover:scale-105 transition duration-300">
+                        לקטלוג המוצרים
+                    </a>
+                    <a href="#contact" className="hidden md:block bg-cyan-600 text-white px-8 py-3 rounded-full font-bold text-sm shadow-xl hover:scale-105 transition duration-300">פגישת ייעוץ</a>
+                    <button onClick={onLoginClick} className="bg-slate-900 text-white px-8 py-3 rounded-full font-bold text-sm shadow-xl hover:bg-cyan-600 transition duration-300">להתחבר</button>
+                </div>
+
+            </div>
+        </header>
     );
 }
