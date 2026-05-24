@@ -3,12 +3,13 @@ import React, { useState, useEffect, useRef } from 'react';
 export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode, lessons, setLessons, saveChanges, duplicateActiveLesson, deleteActiveLesson, toggleComplete, userProgress, getLessonIcon }) {
     
     const playerRef = useRef(null);
-    const videoContainerRef = useRef(null); // רפרנס עבור הגדלה למסך מלא
+    const videoContainerRef = useRef(null); 
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [playbackRate, setPlaybackRate] = useState(1);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isMuted, setIsMuted] = useState(false); // סטייט חדש לניהול השתקה
 
     useEffect(() => {
         if (!activeLesson || activeLesson.type !== 'video') return;
@@ -48,8 +49,15 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
                 },
                 events: {
                     onReady: (event) => {
+                        // כפיית עוצמת שמע פנימית וביטול השתקה ראשוני של הדפדפן
+                        try {
+                            event.target.unMute();
+                            event.target.setVolume(100);
+                        } catch (err) { console.error("שגיאה באתחול שמע:", err); }
+
                         setDuration(event.target.getDuration());
                         setPlaybackRate(event.target.getPlaybackRate());
+                        setIsMuted(event.target.isMuted());
                     },
                     onStateChange: (event) => {
                         if (event.data === 1) {
@@ -75,7 +83,6 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
             }
         }, 500);
 
-        // האזנה לשינוי מצב מסך מלא של הדפדפן כדי לעדכן את האייקון
         const onFullscreenChange = () => {
             setIsFullscreen(!!document.fullscreenElement);
         };
@@ -91,6 +98,7 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
             setIsPlaying(false);
             setCurrentTime(0);
             setDuration(0);
+            setIsMuted(false);
         };
     }, [activeLesson?.id]);
 
@@ -102,6 +110,19 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
         } else {
             playerRef.current.playVideo();
             setIsPlaying(true);
+        }
+    };
+
+    // פונקציית שליטה חדשה למעבר בין השתקה לשמע פעיל
+    const handleMuteToggle = () => {
+        if (!playerRef.current || typeof playerRef.current.mute !== 'function') return;
+        if (isMuted) {
+            playerRef.current.unMute();
+            playerRef.current.setVolume(100);
+            setIsMuted(false);
+        } else {
+            playerRef.current.mute();
+            setIsMuted(true);
         }
     };
 
@@ -121,7 +142,6 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
         }
     };
 
-    // מנגנון הגדלה/הקטנה למסך מלא של הנגן כולו
     const handleToggleFullscreen = () => {
         if (!videoContainerRef.current) return;
         if (!document.fullscreenElement) {
@@ -166,7 +186,7 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
                         </div>
                     </div>
                 ) : (
-                    <div className="bg-slate-100 p-8 rounded-[2.5rem] border border-slate-200">
+                    <div className="bg-slate-100 p-12 rounded-[3rem] border border-slate-200">
                         <span className="text-5xl block mb-2">📁</span>
                         <h2 className="text-3xl font-black text-slate-800">{activeLesson.title}</h2>
                         <p className="text-slate-500 mt-2 font-bold text-sm">בחר שיעור מתוך הפרק בתפריט הצדדי</p>
@@ -198,9 +218,7 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
         }
 
         return (
-            /* נגן הוידאו המאובטח - כאן הוספנו את הרפרנס למסך מלא ואת שינוי המראה */
-            <div ref={videoContainerRef} className="bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-800 overflow-hidden flex flex-col w-full">
-                {/* אזור הסרטון החתוך אגרסיבית */}
+            <div ref={videoContainerRef} className="bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-800 overflow-hidden flex flex-col w-full relative z-20">
                 <div className="relative w-full overflow-hidden bg-black" style={{ paddingTop: '56.25%' }}>
                     <div 
                         id={`yt-placeholder-${lesson.id}`} 
@@ -215,13 +233,21 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
                     <div className="absolute inset-0 bg-transparent z-10 pointer-events-none" />
                 </div>
 
-                {/* סרגל הבקרה הבלעדי של רובוטיקס */}
-                <div className="p-4 flex items-center gap-4 bg-slate-950 border-t border-slate-800 select-none text-white" dir="rtl">
+                <div className="p-4 flex items-center gap-4 bg-slate-950 border-t border-slate-800 select-none text-white z-30" dir="rtl">
                     <button 
                         onClick={handlePlayPause} 
                         className="bg-purple-600 hover:bg-purple-500 text-white w-10 h-10 rounded-full flex items-center justify-center font-black transition-all shadow-lg shrink-0 text-sm"
                     >
                         {isPlaying ? '⏸' : '▶'}
+                    </button>
+
+                    {/* לחצן הווליום / השתקה החדש שלנו */}
+                    <button 
+                        onClick={handleMuteToggle}
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold transition-all border border-slate-800 ${isMuted ? 'bg-red-500/10 text-red-500 border-red-500/30' : 'bg-slate-900 hover:bg-slate-800 text-slate-300'}`}
+                        title={isMuted ? "הפעל שמע" : "השתק"}
+                    >
+                        {isMuted ? '🔇' : '🔊'}
                     </button>
 
                     <span className="text-xs font-mono font-bold text-slate-400 shrink-0">
@@ -241,7 +267,6 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
                         {formatVideoTime(duration)}
                     </span>
 
-                    {/* מהירות הפעלה */}
                     <div className="flex items-center gap-1 border-r border-slate-800 pr-3 mr-1">
                         <select 
                             value={playbackRate} 
@@ -256,7 +281,6 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
                         </select>
                     </div>
 
-                    {/* כפתור מסך מלא החדש שביקשת! */}
                     <button 
                         onClick={handleToggleFullscreen}
                         className="text-slate-400 hover:text-white font-bold text-lg p-1 transition-colors shrink-0 border-r border-slate-800 pr-3 mr-1"
@@ -270,8 +294,7 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
     };
 
     return (
-        /* שינוי המרווח ל- space-y-3 כדי לצמצם רווחים אנכיים ולמנוע גלילה לחלוטין */
-        <div className="max-w-4xl mx-auto space-y-3 animate-fade-in">
+        <div className="max-w-4xl mx-auto space-y-3 animate-fade-in relative z-10">
             {isEditMode ? (
                 <div className="bg-slate-50 p-6 rounded-[2rem] border-2 border-dashed border-purple-200 space-y-4">
                     <h2 className="text-lg font-black text-purple-600">עריכת שיעור ({activeLesson.type})</h2>
@@ -301,7 +324,6 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
                 </div>
             ) : (
                 <>
-                    {/* שורת כותרת צרה וקומפקטית במיוחד (p-3 במקום p-6) */}
                     <div className="flex justify-between items-center bg-slate-50 p-3 rounded-2xl border shadow-sm">
                         <div className="flex items-center gap-2">
                             {getLessonIcon(activeLesson.type)}
