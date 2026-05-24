@@ -1,222 +1,302 @@
-import React, { useState } from 'react';
-import ThreeBackground from './ThreeBackground';
-import Accessibility from './Accessibility';
-import LandingHeader from './LandingHeader';
+import React, { useState, useEffect, useRef } from 'react';
 
-export default function LandingPage({ onLoginClick }) {
-    const catalogUrl = "https://heyzine.com/flip-book/426cdf50eb.html";
-    const MODIIN_LOGO = "https://i.postimg.cc/tRvK7zGH/lwgw-mw'zh-'zwryt-hbl-mwdy'yn.jpg";
+export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode, lessons, setLessons, saveChanges, duplicateActiveLesson, deleteActiveLesson, toggleComplete, userProgress, getLessonIcon }) {
+    
+    // מצבי ניהול עבור נגן הוידאו המאובטח והמותאם אישית שלנו
+    const playerRef = useRef(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [playbackRate, setPlaybackRate] = useState(1);
 
-    // מצב לניהול פתיחת חלוניות מידע (Modals) עבור 6 המחקרים/תיבות לחיצות
-    const [activeModal, setActiveModal] = useState(null);
+    useEffect(() => {
+        if (!activeLesson || activeLesson.type !== 'video') return;
 
-    const researches = [
-        {
-            id: 1,
-            title: "1. SEL רגשי וחברתי",
-            short: "הטמעת תוכניות ויסות רגשי וחברתי מותאמות לגיל הרך.",
-            full: "מחלקת החינוך של חבל מודיעין שמה דגש נרחב על הלמידה הרגשית-חברתית (SEL) כבר מגני הילדים. התוכנית מקנה לילדים כלים לניהול רגשות, פיתוח אמפתיה, פתרון קונפליקטים ובניית חוסן נפשי מול אתגרים משתנים במרחב החינוכי והבישי."
-        },
-        {
-            id: 2,
-            title: "2. משחוק ולמידה חווייתית",
-            short: "הפיכת תהליך הלמידה בגיל הרך לחוויה מניעה לפעולה.",
-            full: "שילוב אלמנטים מעולם המשחק (Gamification) ככלי פדגוגי מוביל בגנים ובכיתות היסוד במועצה. המחקר והיישום בשטח מוכיחים כי למידה מבוססת משחק מעוררת סקרנות טבעית, מעלה את המוטיבציה הפנימית ומעמיקה את תפיסת החומר הנלמד."
-        },
-        {
-            id: 3,
-            title: "3. שיח מעודד תקשורת",
-            short: "פיתוח שפה דבורה, ביטוי עצמי ודיאלוג מקרב בגנים.",
-            full: "יצירת סביבה חינוכית עשירה בשפה המעודדת כל ילד וילדה לבטא את עולמם הפנימי. אנו מפתחים במועצה מודלים של שיח אינטראקטיבי בין אנשי הצוות לילדים, המקדמים הקשבה פעילה, הרחבת אוצר המילים וביטחון בתקשורת הבינאישית."
-        },
-        {
-            id: 4,
-            title: "4. לומד עצמאי מקטנות",
-            short: "הקניית מיומנויות של בחירה, חקר וניהול עצמי.",
-            full: "עידוד הילדים לחשיבה עצמאית וליוזמה אישית במרחבי הלמידה בחבל מודיעין. דרך סביבות מגרות בחירה, הילדים מתנסים בהצבת מטרות קטנות, פתרון בעיות וניסוי וטעייה, המפתחים אצלם תפיסת מסוגלות עצמית גבוהה."
-        },
-        {
-            id: 5,
-            title: "5. הבית, הגן ובית הספר",
-            short: "בניית שותפות הדוקה ורצף חינוכי בין ההורים למועצה.",
-            full: "יצירת גשר פדגוגי וקהילתי איתן בין המשפחה לבין מוסדות החינוך בגיל הרך. אנו מאמינים כי מעורבות הורים חיובית, שיתוף במידע וסנכרון מטרות בין הבית לגן מייצרים מעטפת תמיכה אופטימלית לצמיחת הילד."
-        },
-        {
-            id: 6,
-            title: "6. מוגנות וסביבה בטוחה",
-            short: "הבטחת מרחב מוגן, מכיל ושומר פיזית ורגשית.",
-            full: "יישום סטנדרטים גבוהים ביותר של מוגנות רגשית ופיזית בכלל מסגרות הגיל הרך במועצה אזורית חבל מודיעין. יצירת אקלים בטוח המונע פגיעות, מעודד דיווח ומעניק לילדים תחושת מוגנות מוחלטת המהווה תנאי סף חיוני לכל למידה."
+        // טעינה דינמית ובטוחה של ה-API של יוטיוב במידה ואינו קיים
+        if (!window.YT) {
+            const tag = document.createElement('script');
+            tag.src = "https://www.youtube.com/iframe_api";
+            const firstScriptTag = document.getElementsByTagName('script')[0];
+            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
         }
-    ];
+
+        let interval;
+        let checkYTReady;
+
+        function initCustomPlayer() {
+            let rawUrl = activeLesson.embedUrl || activeLesson.url;
+            if (!rawUrl) return;
+
+            let vidId = '';
+            if (rawUrl.includes('watch?v=')) vidId = rawUrl.split('watch?v=')[1].split('&')[0];
+            else if (rawUrl.includes('youtu.be/')) vidId = rawUrl.split('youtu.be/')[1].split('?')[0];
+            else if (rawUrl.includes('embed/')) vidId = rawUrl.split('embed/')[1].split('?')[0];
+
+            if (!vidId) return;
+
+            // יצירת מופע הנגן של יוטיוב על האלמנט הייחודי
+            playerRef.current = new window.YT.Player(`yt-placeholder-${activeLesson.id}`, {
+                videoId: vidId,
+                playerVars: {
+                    rel: 0,
+                    modestbranding: 1,
+                    showinfo: 0,
+                    controls: 0, // מעלימים לחלוטין את הלחצנים המקוריים של יוטיוב
+                    disablekb: 1,
+                    playsinline: 1,
+                    iv_load_policy: 3,
+                    fs: 0
+                },
+                events: {
+                    onReady: (event) => {
+                        setDuration(event.target.getDuration());
+                        setPlaybackRate(event.target.getPlaybackRate());
+                    },
+                    onStateChange: (event) => {
+                        // מצב 1 פירושו שהסרטון מתנגן בפועל
+                        if (event.data === 1) {
+                            setIsPlaying(true);
+                        } else {
+                            setIsPlaying(false);
+                        }
+                    }
+                }
+            });
+        }
+
+        // בדיקה מחזורית מאובטחת שה-API נטען בדפדפן לפני הפעלת הנגן
+        checkYTReady = setInterval(() => {
+            if (window.YT && window.YT.Player) {
+                clearInterval(checkYTReady);
+                initCustomPlayer();
+            }
+        }, 100);
+
+        // מעקב רציף ועדכון ציר הזמן של הסרטון ב-React שלנו
+        interval = setInterval(() => {
+            if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
+                setCurrentTime(playerRef.current.getCurrentTime());
+            }
+        }, 500);
+
+        return () => {
+            clearInterval(checkYTReady);
+            clearInterval(interval);
+            if (playerRef.current && typeof playerRef.current.destroy === 'function') {
+                try { playerRef.current.destroy(); } catch (e) { console.error(e); }
+            }
+            setIsPlaying(false);
+            setCurrentTime(0);
+            setDuration(0);
+        };
+    }, [activeLesson?.id]);
+
+    // פונקציות שליטה מותאמות אישית
+    const handlePlayPause = () => {
+        if (!playerRef.current) return;
+        if (isPlaying) {
+            playerRef.current.pauseVideo();
+            setIsPlaying(false);
+        } else {
+            playerRef.current.playVideo();
+            setIsPlaying(true);
+        }
+    };
+
+    const handleTimelineSeek = (e) => {
+        const targetSeconds = parseFloat(e.target.value);
+        setCurrentTime(targetSeconds);
+        if (playerRef.current && typeof playerRef.current.seekTo === 'function') {
+            playerRef.current.seekTo(targetSeconds, true);
+        }
+    };
+
+    const handleSpeedRateChange = (e) => {
+        const speed = parseFloat(e.target.value);
+        setPlaybackRate(speed);
+        if (playerRef.current && typeof playerRef.current.setPlaybackRate === 'function') {
+            playerRef.current.setPlaybackRate(speed);
+        }
+    };
+
+    // פורמט תצוגת זמן ידידותי (MM:SS)
+    const formatVideoTime = (seconds) => {
+        if (isNaN(seconds)) return "0:00";
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    };
+
+    if (!activeLesson) {
+        return (
+            <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4">
+                <span className="text-6xl">👈</span>
+                <span className="font-black text-3xl">בחר שיעור מהתפריט לעריכה או צפייה</span>
+            </div>
+        );
+    }
+
+    if (activeLesson.type === 'chapter') {
+        return (
+            <div className="max-w-3xl mx-auto mt-20 text-center animate-fade-in">
+                {isEditMode ? (
+                    <div className="bg-slate-50 p-8 rounded-[2.5rem] border-2 border-dashed border-purple-200 space-y-6">
+                        <h2 className="text-xl font-black text-purple-600">עריכת שם פרק</h2>
+                        <input className="w-full p-4 bg-white rounded-2xl border-2 font-bold outline-none focus:border-purple-500 text-center text-2xl" value={activeLesson.title} onChange={e => {
+                            const updated = lessons.map(l => l.id === activeLesson.id ? {...l, title: e.target.value} : l);
+                            setLessons(updated);
+                            setActiveLesson({...activeLesson, title: e.target.value});
+                        }} />
+                        <div className="flex gap-4 pt-4 border-t border-purple-100">
+                            <button onClick={deleteActiveLesson} className="flex-1 bg-red-100 text-red-600 hover:bg-red-200 py-4 rounded-2xl font-black transition-colors shadow-sm">🗑️ מחיקת פרק</button>
+                            <button onClick={saveChanges} className="flex-[2] bg-purple-600 text-white hover:bg-purple-700 py-4 rounded-2xl font-black transition-colors shadow-lg">💾 שמור שינויים</button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="bg-slate-100 p-12 rounded-[3rem] border border-slate-200">
+                        <span className="text-6xl block mb-4">📁</span>
+                        <h2 className="text-4xl font-black text-slate-800">{activeLesson.title}</h2>
+                        <p className="text-slate-500 mt-4 font-bold">בחר שיעור מתוך הפרק בתפריט הצדדי</p>
+                    </div>
+                )}
+            </div>
+        );
+    }
 
     return (
-        <div className="antialiased font-sans relative bg-slate-50" dir="rtl">
-            <ThreeBackground />
-            <Accessibility />
-            
-            <style>{`
-                body { scroll-behavior: smooth; overflow-x: hidden; }
-                .section-strip { position: relative; min-height: 80vh; display: flex; align-items: center; padding: 5rem 0; z-index: 20; }
-                
-                .marquee-container { width: 100%; overflow: hidden; padding: 3rem 0; background: #fff; border-top: 1px solid #f0f0f0; border-bottom: 1px solid #f0f0f0; }
-                .marquee-track { display: flex; width: max-content; animation: scroll-left 40s linear infinite; }
-                @keyframes scroll-left { 0% { transform: translateX(0); } 100% { transform: translateX(50%); } }
-                
-                .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 5000; backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; }
-                .modal-content { background: white; padding: 3rem; border-radius: 2.5rem; max-width: 600px; width: 90%; position: relative; animation: modalIn 0.4s ease-out; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.2); }
-                @keyframes modalIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
-                
-                .personal-box { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; border: 1px solid #e2e8f0; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(5px); }
-                .personal-box:hover { transform: translateY(-8px); border-color: #2bb2c4; box-shadow: 0 20px 40px rgba(43,178,196,0.15); }
-                
-                .text-chotam-teal { color: #2bb2c4; } .bg-chotam-teal { background-color: #2bb2c4; }
-                .text-chotam-green { color: #99ca3c; } .bg-chotam-green { background-color: #99ca3c; }
-                .text-chotam-yellow { color: #ffcc00; }
-                .text-chotam-orange { color: #f7941d; }
-                .text-chotam-red { color: #f15a24; }
-                
-                @media print {
-                    @page { size: A4; margin: 20mm; }
-                    body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                    .no-print { display: none !important; }
-                    .print-only { display: block !important; }
-                    .shadow-sm, .shadow-xl { box-shadow: none !important; border: 1px solid #e2e8f0; }
-                    canvas { display: none !important; }
-                }
-                .print-only { display: none; }
-            `}</style>
-
-            {/* כותרת מיוחדת שמופיעה רק ב-PDF מודפס */}
-            <div className="print-only text-center mb-10 pb-6 border-b-4 border-chotam-teal">
-                <img src={MODIIN_LOGO} alt="מועצה אזורית חבל מודיעין" className="h-24 mx-auto mb-4 object-contain" />
-                <h1 className="text-4xl font-black text-slate-900 mb-2">תשתית פדגוגית ומחקרית - חבל מודיעין</h1>
-                <p className="text-xl text-slate-600">מחלקת חינוך והאגף לגיל הרך</p>
-                <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
-                    <p className="font-bold text-lg mb-2">למעבר למערכת הניהול הדיגיטלית:</p>
-                    <a href={catalogUrl} className="text-chotam-teal font-bold" dir="ltr">{catalogUrl}</a>
-                </div>
-            </div>
-
-            <LandingHeader onLoginClick={onLoginClick} />
-
-            {/* אזור ה-HERO הראשי של דף הנחיתה */}
-            <main id="hero" className="pt-32 pb-16 px-4 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center min-h-[85vh]">
-                <div className="space-y-6 text-right z-10">
-                    <span className="bg-chotam-teal/10 text-chotam-teal px-4 py-1.5 rounded-full text-sm font-bold inline-block">
-                        מועצה אזורית חבל מודיעין
-                    </span>
-                    <h1 className="text-4xl md:text-6xl font-black text-slate-900 leading-tight">
-                        מערכת ניהול פדגוגית <br />
-                        <span className="text-chotam-teal">לגיל הרך ולבתי הספר</span>
-                    </h1>
-                    <p className="text-lg text-slate-600 leading-relaxed">
-                        ברוכים הבאים לפלטפורמה החינוכית המתקדמת של מחלקת החינוך. כאן אנו מיישמים תשתית מחקרית וייחודית המשלבת חדשנות דיגיטלית עם מענה רגשי וחברתי מקיף עבור תלמידי וילדי המועצה.
-                    </p>
-                    <div className="flex flex-wrap gap-4 pt-4 no-print">
-                        <a href="#sectors" className="bg-chotam-teal text-white px-8 py-4 rounded-full font-bold shadow-lg hover:bg-opacity-90 transition">
-                            לששת מחקרי הגיל הרך
-                        </a>
-                        <a href="#impact" className="bg-slate-900 text-white px-8 py-4 rounded-full font-bold shadow-lg hover:bg-slate-800 transition">
-                            מדדי אימפקט
-                        </a>
+        <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
+            {isEditMode ? (
+                <div className="bg-slate-50 p-8 rounded-[2.5rem] border-2 border-dashed border-purple-200 space-y-6">
+                    <h2 className="text-xl font-black text-purple-600">עריכת שיעור ({activeLesson.type})</h2>
+                    <input className="w-full p-4 bg-white rounded-2xl border-2 font-bold outline-none focus:border-purple-500" value={activeLesson.title} onChange={e => {
+                        const updated = lessons.map(l => l.id === activeLesson.id ? {...l, title: e.target.value} : l);
+                        setLessons(updated);
+                        setActiveLesson({...activeLesson, title: e.target.value});
+                    }} />
+                    <textarea className="w-full p-4 bg-white rounded-2xl border-2 font-medium h-40 outline-none focus:border-purple-500" placeholder={activeLesson.type === 'html' ? "הדבק כאן קוד HTML..." : "תוכן השיעור..."} value={activeLesson.content || ''} onChange={e => {
+                        const updated = lessons.map(l => l.id === activeLesson.id ? {...l, content: e.target.value} : l);
+                        setLessons(updated);
+                        setActiveLesson({...activeLesson, content: e.target.value});
+                    }} />
+                    {activeLesson.type !== 'text' && activeLesson.type !== 'html' && (
+                        <input dir="ltr" className="w-full p-4 bg-white rounded-2xl border-2 font-bold outline-none focus:border-purple-500" placeholder="URL קישור להטמעה" value={activeLesson.embedUrl || activeLesson.url || ''} onChange={e => {
+                            const updated = lessons.map(l => l.id === activeLesson.id ? {...l, embedUrl: e.target.value, url: e.target.value} : l);
+                            setLessons(updated);
+                            setActiveLesson({...activeLesson, embedUrl: e.target.value, url: e.target.value});
+                        }} />
+                    )}
+                    
+                    <div className="flex gap-4 pt-4 border-t border-purple-100">
+                        <button onClick={deleteActiveLesson} className="flex-1 bg-red-100 text-red-600 hover:bg-red-200 py-4 rounded-2xl font-black transition-colors shadow-sm">🗑️ מחיקת שיעור</button>
+                        <button onClick={duplicateActiveLesson} className="flex-1 bg-slate-200 text-slate-700 hover:bg-slate-300 py-4 rounded-2xl font-black transition-colors shadow-sm">📑 שכפול שיעור</button>
+                        <button onClick={saveChanges} className="flex-[2] bg-purple-600 text-white hover:bg-purple-700 py-4 rounded-2xl font-black transition-colors shadow-lg">💾 שמור שינויים</button>
                     </div>
                 </div>
-                <div className="flex justify-center items-center z-10">
-                    <img src={MODIIN_LOGO} alt="חינוך חבל מודיעין" className="max-w-[80%] h-auto object-contain bg-white p-8 rounded-3xl shadow-2xl border border-slate-100" />
-                </div>
-            </main>
-
-            {/* אזור 6 התיבות הלחיצות - מחקרי מחלקת החינוך והגיל הרך */}
-            <section id="sectors" className="section-strip bg-white border-y border-slate-100">
-                <div className="max-w-7xl mx-auto px-4 w-full">
-                    <div className="text-center space-y-4 mb-16">
-                        <h2 className="text-3xl md:text-5xl font-black text-slate-900">תשתית פדגוגית מבוססת 6 מחקרים</h2>
-                        <p className="text-slate-500 text-lg max-w-3xl mx-auto">
-                            מחלקת החינוך והאגף לגיל הרך בחבל מודיעין מובילים עשייה מקצועית המבוססת על עקרונות מחקריים יישומיים. לחצו על התיבות למידע מורחב:
-                        </p>
+            ) : (
+                <>
+                    <div className="flex justify-between items-center bg-slate-50 p-6 rounded-[2rem] border">
+                        <div className="flex items-center gap-3">
+                            {getLessonIcon(activeLesson.type)}
+                            <h2 className="text-2xl font-black text-slate-800">{activeLesson.title}</h2>
+                        </div>
+                        <button onClick={() => toggleComplete(activeLesson.id)} className={`px-8 py-3 rounded-2xl font-black transition-all ${userProgress[activeLesson.id] ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-900 text-white shadow-xl hover:scale-105 hover:bg-purple-600'}`}>
+                            {userProgress[activeLesson.id] ? 'הושלם ✓' : 'סמן כהושלם'}
+                        </button>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {researches.map((res) => (
-                            <div 
-                                key={res.id} 
-                                onClick={() => setActiveModal(res)}
-                                className="personal-box p-8 rounded-3xl shadow-sm space-y-4 relative overflow-hidden"
-                            >
-                                <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-xl font-bold text-chotam-teal">
-                                    {res.id}
+                    
+                    <div className="min-h-[500px]">
+                        {activeLesson.isSmartContent && activeLesson.description && (
+                            <div className="bg-purple-50 p-6 rounded-3xl border-2 border-purple-200 mb-8 shadow-sm flex gap-4 items-start">
+                                <div className="text-3xl">💡</div>
+                                <div>
+                                    <h3 className="font-black text-purple-800 mb-1">המלצה פדגוגית לשילוב התוכן (AI)</h3>
+                                    <p className="text-slate-700 font-bold">{activeLesson.description}</p>
                                 </div>
-                                <h3 className="text-xl font-bold text-slate-800">{res.title}</h3>
-                                <p className="text-slate-600 text-sm leading-relaxed">{res.short}</p>
-                                <span className="text-chotam-teal text-xs font-bold block pt-2 group-hover:underline no-print">
-                                    קרא עוד ➔
-                                </span>
                             </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
+                        )}
 
-            {/* מקטע מחלקת החינוך חבל מודיעין - החליף את מקטע "המייסד" */}
-            <section id="rami" className="section-strip bg-slate-50">
-                <div className="max-w-5xl mx-auto px-4 w-full text-center space-y-8 z-10">
-                    <div className="inline-block p-4 bg-white rounded-full shadow-md mb-2">
-                        <img src={MODIIN_LOGO} alt="לוגו מועצה" className="h-20 w-auto object-contain" />
-                    </div>
-                    <h2 className="text-3xl md:text-5xl font-black text-slate-900">מחלקת החינוך – מועצה אזורית חבל מודיעין</h2>
-                    <h4 className="text-xl font-bold text-chotam-teal">חזון של חדשנות ומצוינות מהגיל הרך ועד התיכון</h4>
-                    <p className="text-slate-600 text-lg leading-relaxed max-w-4xl mx-auto text-justify md:text-center">
-                        מחלקת החינוך של חבל מודיעין חורטת על דגלה את פיתוחם האישי, הרגשי והאקדמי של כלל ילדי המועצה. מתוך ראייה הוליסטית של החינוך לגיל הרך, אנו פועלים ללא לאות לבניית תוכניות מתקדמות המשלבות כלים דיגיטליים, שיטות משחוק מתקדמות ודגש עמוק על מוגנות ו-SEL. השותפות הייחודית בין צוותי ההוראה, מנהלי המוסדות, קהילת ההורים והנהלת המועצה מייצרת סביבה תומכת המאפשרת לכל תלמיד לממש את הפוטנציאל המלא שלו בביטחון ובאהבה.
-                    </p>
-                </div>
-            </section>
+                        {activeLesson.type === 'html' ? (
+                            <div className="bg-white p-4 rounded-3xl border shadow-sm" dangerouslySetInnerHTML={{ __html: activeLesson.content }} />
+                        ) : activeLesson.type === 'video' && (activeLesson.embedUrl || activeLesson.url) ? (
+                            
+                            /* נגן הוידאו הלבן והמאובטח לחלוטין מבית רובוטיקס */
+                            <div key={activeLesson.id} className="bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-800 overflow-hidden">
+                                {/* אזור הסרטון החתוך (Crop) */}
+                                <div className="relative w-full overflow-hidden bg-black" style={{ paddingTop: '56.25%' }}>
+                                    <div 
+                                        id={`yt-placeholder-${activeLesson.id}`} 
+                                        className="absolute" 
+                                        style={{
+                                            width: '112%',
+                                            height: '130%',
+                                            top: '-15%',
+                                            left: '-6%',
+                                        }}
+                                    />
+                                    {/* מסך מגן שקוף למניעת אינטראקציות עם המערכת של יוטיוב */}
+                                    <div className="absolute inset-0 bg-transparent z-10 pointer-events-none" />
+                                </div>
 
-            {/* מקטע האימפקט המעודכן */}
-            <section id="impact" className="section-strip bg-slate-900 text-white">
-                <div className="max-w-7xl mx-auto px-4 w-full">
-                    <div className="text-center space-y-4 mb-16">
-                        <h2 className="text-3xl md:text-5xl font-black">האימפקט שלנו השנה</h2>
-                        <p className="text-slate-400 text-lg">נתוני הפעילות והמעורבות של מערכת החינוך בחבל מודיעין</p>
-                    </div>
+                                {/* סרגל הכלים המקצועי והמותאם אישית שלנו (React Custom Bar) */}
+                                <div className="p-5 flex items-center gap-4 bg-slate-950 border-t border-slate-800 select-none" dir="rtl">
+                                    <button 
+                                        onClick={handlePlayPause} 
+                                        className="bg-purple-600 hover:bg-purple-500 text-white w-12 h-12 rounded-full flex items-center justify-center font-black transition-all shadow-lg text-lg shrink-0"
+                                        title={isPlaying ? "השהה" : "נגן"}
+                                    >
+                                        {isPlaying ? '⏸' : '▶'}
+                                    </button>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-12 text-center">
-                        <div className="space-y-2">
-                            <div className="text-6xl md:text-8xl font-black text-chotam-teal">350</div>
-                            <div className="text-xl font-bold text-slate-300">ילדים וילדות פעילים</div>
-                        </div>
-                        <div className="space-y-2">
-                            <div className="text-6xl md:text-8xl font-black text-chotam-green">6</div>
-                            <div className="text-xl font-bold text-slate-300">כיתות וגני ילדים מובילים</div>
-                        </div>
-                        <div className="space-y-2">
-                            <div className="text-6xl md:text-8xl font-black text-chotam-yellow">90%</div>
-                            <div className="text-xl font-bold text-slate-300">שיעורי כניסה ומעורבות במערכת</div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+                                    {/* ציר זמן נוכחי */}
+                                    <span className="text-xs font-mono font-bold text-slate-400 shrink-0 select-none">
+                                        {formatVideoTime(currentTime)}
+                                    </span>
 
-            {/* חלונית מידע קופצת (Modal) עבור התיבות הלחיצות */}
-            {activeModal && (
-                <div className="modal-overlay no-print" onClick={() => setActiveModal(null)}>
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                        <button 
-                            className="absolute top-6 left-6 text-slate-400 hover:text-slate-600 text-2xl font-bold"
-                            onClick={() => setActiveModal(null)}
-                        >
-                            ✕
-                        </button>
-                        <span className="text-sm font-bold text-chotam-teal block mb-2">מועצה אזורית חבל מודיעין</span>
-                        <h3 className="text-2xl font-black text-slate-900 mb-4">{activeModal.title}</h3>
-                        <p className="text-slate-600 leading-relaxed text-base">{activeModal.full}</p>
-                        <button 
-                            className="mt-8 bg-chotam-teal text-white px-6 py-2.5 rounded-full font-bold text-sm shadow-md hover:bg-opacity-90 transition w-full"
-                            onClick={() => setActiveModal(null)}
-                        >
-                            סגור חלונית
-                        </button>
+                                    {/* סליידר גרירה של ציר הזמן */}
+                                    <input 
+                                        type="range" 
+                                        min="0" 
+                                        max={duration || 100} 
+                                        value={currentTime} 
+                                        onChange={handleTimelineSeek}
+                                        className="flex-grow accent-purple-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer hover:bg-slate-700 transition-colors"
+                                    />
+
+                                    {/* זמן כולל של הסרטון */}
+                                    <span className="text-xs font-mono font-bold text-slate-400 shrink-0 select-none">
+                                        {formatVideoTime(duration)}
+                                    </span>
+
+                                    {/* תפריט שליטה על מהירות ההפעלה */}
+                                    <div className="flex items-center gap-1 border-r border-slate-800 pr-4">
+                                        <select 
+                                            value={playbackRate} 
+                                            onChange={handleSpeedRateChange}
+                                            className="bg-slate-900 border border-slate-700 text-white font-bold rounded-xl px-3 py-2 text-xs outline-none focus:border-purple-500 cursor-pointer text-center"
+                                        >
+                                            <option value="0.5">0.5x</option>
+                                            <option value="1">1.0x (רגיל)</option>
+                                            <option value="1.25">1.25x</option>
+                                            <option value="1.5">1.5x</option>
+                                            <option value="2">2.0x</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                        ) : activeLesson.type === 'link' ? (
+                            <div className="bg-slate-50 p-12 rounded-3xl border-2 border-dashed flex flex-col items-center justify-center text-center">
+                                <span className="text-6xl mb-4">🔗</span>
+                                <h3 className="text-2xl font-black text-slate-800 mb-6">קישור חיצוני / משאב עזר</h3>
+                                <a href={activeLesson.url || activeLesson.embedUrl} target="_blank" rel="noreferrer" className="bg-purple-600 text-white px-8 py-4 rounded-full font-black text-lg hover:bg-purple-700 hover:scale-105 transition-all shadow-xl">לחץ כאן לפתיחת הקישור בחלון חדש</a>
+                            </div>
+                        ) : (activeLesson.embedUrl || activeLesson.url) && activeLesson.type !== 'text' ? (
+                            <iframe title="c" className="w-full h-[600px] rounded-3xl border shadow-xl" src={activeLesson.embedUrl || activeLesson.url} allowFullScreen />
+                        ) : (
+                            <div className="prose prose-lg max-w-none text-right bg-white p-8 rounded-3xl border shadow-sm whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: activeLesson.content || '' }} />
+                        )}
                     </div>
-                </div>
+                </>
             )}
         </div>
     );
