@@ -194,4 +194,153 @@ export default function LessonEditor({ activeLesson, setActiveLesson, isEditMode
                 cleanUrl = `https://www.youtube-nocookie.com/embed/${vidId}?rel=0&modestbranding=1&showinfo=0&controls=1&disablekb=1&playsinline=1&iv_load_policy=3`;
             }
         } else {
-            cleanUrl = rawUrl.replace('
+            cleanUrl = rawUrl.replace('watch?v=', 'embed/');
+        }
+
+        return (
+            /* נגן הוידאו המאובטח - כאן הוספנו את הרפרנס למסך מלא ואת שינוי המראה */
+            <div ref={videoContainerRef} className="bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-800 overflow-hidden flex flex-col w-full">
+                {/* אזור הסרטון החתוך אגרסיבית */}
+                <div className="relative w-full overflow-hidden bg-black" style={{ paddingTop: '56.25%' }}>
+                    <div 
+                        id={`yt-placeholder-${lesson.id}`} 
+                        className="absolute" 
+                        style={{
+                            width: '112%',
+                            height: '130%',
+                            top: '-15%',
+                            left: '-6%',
+                        }}
+                    />
+                    <div className="absolute inset-0 bg-transparent z-10 pointer-events-none" />
+                </div>
+
+                {/* סרגל הבקרה הבלעדי של רובוטיקס */}
+                <div className="p-4 flex items-center gap-4 bg-slate-950 border-t border-slate-800 select-none text-white" dir="rtl">
+                    <button 
+                        onClick={handlePlayPause} 
+                        className="bg-purple-600 hover:bg-purple-500 text-white w-10 h-10 rounded-full flex items-center justify-center font-black transition-all shadow-lg shrink-0 text-sm"
+                    >
+                        {isPlaying ? '⏸' : '▶'}
+                    </button>
+
+                    <span className="text-xs font-mono font-bold text-slate-400 shrink-0">
+                        {formatVideoTime(currentTime)}
+                    </span>
+
+                    <input 
+                        type="range" 
+                        min="0" 
+                        max={duration || 100} 
+                        value={currentTime} 
+                        onChange={handleTimelineSeek}
+                        className="flex-grow accent-purple-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
+                    />
+
+                    <span className="text-xs font-mono font-bold text-slate-400 shrink-0">
+                        {formatVideoTime(duration)}
+                    </span>
+
+                    {/* מהירות הפעלה */}
+                    <div className="flex items-center gap-1 border-r border-slate-800 pr-3 mr-1">
+                        <select 
+                            value={playbackRate} 
+                            onChange={handleSpeedRateChange}
+                            className="bg-slate-900 border border-slate-700 text-white font-bold rounded-xl px-2 py-1 text-xs outline-none cursor-pointer"
+                        >
+                            <option value="0.5">0.5x</option>
+                            <option value="1">1.0x</option>
+                            <option value="1.25">1.25x</option>
+                            <option value="1.5">1.5x</option>
+                            <option value="2">2.0x</option>
+                        </select>
+                    </div>
+
+                    {/* כפתור מסך מלא החדש שביקשת! */}
+                    <button 
+                        onClick={handleToggleFullscreen}
+                        className="text-slate-400 hover:text-white font-bold text-lg p-1 transition-colors shrink-0 border-r border-slate-800 pr-3 mr-1"
+                        title={isFullscreen ? "צא ממסך מלא" : "מסך מלא"}
+                    >
+                        {isFullscreen ? '🔳' : '⛶'}
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        /* שינוי המרווח ל- space-y-3 כדי לצמצם רווחים אנכיים ולמנוע גלילה לחלוטין */
+        <div className="max-w-4xl mx-auto space-y-3 animate-fade-in">
+            {isEditMode ? (
+                <div className="bg-slate-50 p-6 rounded-[2rem] border-2 border-dashed border-purple-200 space-y-4">
+                    <h2 className="text-lg font-black text-purple-600">עריכת שיעור ({activeLesson.type})</h2>
+                    <input className="w-full p-3 bg-white rounded-xl border-2 font-bold outline-none focus:border-purple-500" value={activeLesson.title} onChange={e => {
+                        const updated = lessons.map(l => l.id === activeLesson.id ? {...l, title: e.target.value} : l);
+                        setLessons(updated);
+                        setActiveLesson({...activeLesson, title: e.target.value});
+                    }} />
+                    <textarea className="w-full p-3 bg-white rounded-xl border-2 font-medium h-32 outline-none focus:border-purple-500" placeholder={activeLesson.type === 'html' ? "הדבק כאן קוד HTML..." : "תוכן השיעור..."} value={activeLesson.content || ''} onChange={e => {
+                        const updated = lessons.map(l => l.id === activeLesson.id ? {...l, content: e.target.value} : l);
+                        setLessons(updated);
+                        setActiveLesson({...activeLesson, content: e.target.value});
+                    }} />
+                    {activeLesson.type !== 'text' && activeLesson.type !== 'html' && (
+                        <input dir="ltr" className="w-full p-3 bg-white rounded-xl border-2 font-bold outline-none focus:border-purple-500" placeholder="URL קישור להטמעה" value={activeLesson.embedUrl || activeLesson.url || ''} onChange={e => {
+                            const updated = lessons.map(l => l.id === activeLesson.id ? {...l, embedUrl: e.target.value, url: e.target.value} : l);
+                            setLessons(updated);
+                            setActiveLesson({...activeLesson, embedUrl: e.target.value, url: e.target.value});
+                        }} />
+                    )}
+                    
+                    <div className="flex gap-4 pt-2 border-t border-purple-100">
+                        <button onClick={deleteActiveLesson} className="flex-1 bg-red-100 text-red-600 hover:bg-red-200 py-3 rounded-xl font-black transition-colors shadow-sm">🗑️ מחיקת שיעור</button>
+                        <button onClick={duplicateActiveLesson} className="flex-1 bg-slate-200 text-slate-700 hover:bg-slate-300 py-3 rounded-xl font-black transition-colors shadow-sm">📑 שכפול שיעור</button>
+                        <button onClick={saveChanges} className="flex-[2] bg-purple-600 text-white hover:bg-purple-700 py-3 rounded-xl font-black transition-colors shadow-lg">💾 שמור שינויים</button>
+                    </div>
+                </div>
+            ) : (
+                <>
+                    {/* שורת כותרת צרה וקומפקטית במיוחד (p-3 במקום p-6) */}
+                    <div className="flex justify-between items-center bg-slate-50 p-3 rounded-2xl border shadow-sm">
+                        <div className="flex items-center gap-2">
+                            {getLessonIcon(activeLesson.type)}
+                            <h2 className="text-lg font-black text-slate-800">{activeLesson.title}</h2>
+                        </div>
+                        <button onClick={() => toggleComplete(activeLesson.id)} className={`px-5 py-2 rounded-xl text-sm font-black transition-all ${userProgress[activeLesson.id] ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-900 text-white shadow-md hover:bg-purple-600'}`}>
+                            {userProgress[activeLesson.id] ? 'הושלם ✓' : 'סמן כהושלם'}
+                        </button>
+                    </div>
+                    
+                    <div>
+                        {activeLesson.isSmartContent && activeLesson.description && (
+                            <div className="bg-purple-50 p-4 rounded-2xl border-2 border-purple-200 mb-3 shadow-sm flex gap-3 items-start text-sm">
+                                <div className="text-xl">💡</div>
+                                <div>
+                                    <h3 className="font-black text-purple-800 mb-0.5">המלצה פדגוגית לשילוב התוכן (AI)</h3>
+                                    <p className="text-slate-700 font-bold">{activeLesson.description}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeLesson.type === 'html' ? (
+                            <div className="bg-white p-4 rounded-3xl border shadow-sm" dangerouslySetInnerHTML={{ __html: activeLesson.content }} />
+                        ) : activeLesson.type === 'video' && (activeLesson.embedUrl || activeLesson.url) ? (
+                            renderVideo(activeLesson)
+                        ) : activeLesson.type === 'link' ? (
+                            <div className="bg-slate-50 p-8 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center">
+                                <span className="text-5xl mb-2">🔗</span>
+                                <h3 className="text-xl font-black text-slate-800 mb-4">קישור חיצוני / משאב עזר</h3>
+                                <a href={activeLesson.url || activeLesson.embedUrl} target="_blank" rel="noreferrer" className="bg-purple-600 text-white px-6 py-3 rounded-full font-black hover:bg-purple-700 shadow-md">לחץ כאן לפתיחת הקישור בחלון חדש</a>
+                            </div>
+                        ) : (activeLesson.embedUrl || activeLesson.url) && activeLesson.type !== 'text' ? (
+                            <iframe title="c" className="w-full h-[500px] rounded-3xl border shadow-xl" src={activeLesson.embedUrl || activeLesson.url} allowFullScreen />
+                        ) : (
+                            <div className="prose prose-base max-w-none text-right bg-white p-6 rounded-2xl border shadow-sm whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: activeLesson.content || '' }} />
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
