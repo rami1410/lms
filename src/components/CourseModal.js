@@ -43,21 +43,20 @@ export default function CourseModal({ onClose, toast, geminiKey, institutions = 
         if (!geminiKey) return toast('מפתח ה-API של Gemini חסר במערכת.');
 
         setIsGenerating(true);
-        const prompt = `
-            אתה ממוחה לפדגוגיה חדשנית בחברת "חותם חיים מבית רובוטיקס".
-            כתוב תיאור שיווקי, מרתק ומקצועי (עד 4-5 פסקאות קצרות) עבור קורס בשם: "${name}".
-            הקורס מיועד לתלמידים מכיתה ${fromGrade} עד ${toGrade}.
-            תחומי הדעת של הקורס הם: ${fields.length > 0 ? fields.join(', ') : 'טכנולוגיה וחדשנות'}.
-            התיאור צריך לפנות למורים, מנהלים ותלמידים, ולהדגיש פיתוח לומד עצמאי וכישורי המאה ה-21.
-            ענה בעברית תקנית בלבד.
-        `;
+        
+        // פירוק מחרוזת השרשור בצורה נקייה ומאובטחת למניעת שגיאות סינטקס
+        const promptText = "אתה מומחה לפדגוגיה חדשנית בחברת חותם חיים מבית רובוטיקס. " +
+            "כתוב תיאור שיווקי, מרתק ומקצועי (עד 4-5 פסקאות קצרות) עבור קורס בשם: \"" + name + "\". " +
+            "הקורס מיועד לתלמידים מכיתה " + fromGrade + " עד " + toGrade + ". " +
+            "תחומי הדעת של הקורס הם: " + (fields.length > 0 ? fields.join(', ') : 'טכנולוגיה וחדשנות') + ". " +
+            "התיאור צריך לפנות למורים, מנהלים ותלמידים, ולהדגיש פיתוח לומד עצמאי וכישורי המאה ה-21. " +
+            "ענה בעברית תקנית בלבד.";
 
         try {
-            // עודכן למודל הרשמי והזמין הנתמך כיום על ידי גוגל למניעת שגיאת קומפילציה/ריצה
             const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
             });
             const data = await res.json();
             if (data.error) throw new Error(data.error.message);
@@ -114,4 +113,138 @@ export default function CourseModal({ onClose, toast, geminiKey, institutions = 
             <div className="bg-white w-full max-w-4xl rounded-[3rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
                 
                 <div className="bg-slate-900 p-6 text-white flex justify-between items-center shrink-0">
-                    <h2 className="text-2
+                    <h2 className="text-2xl font-black">{initialData ? '✏️ עריכת קורס' : '➕ יצירת קורס חדש'}</h2>
+                    <button onClick={onClose} className="text-white/50 hover:text-white text-3xl transition-colors">&times;</button>
+                </div>
+
+                <div className="p-8 overflow-y-auto flex-1 space-y-8 bg-slate-50">
+                    
+                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                        <label className="block font-bold text-slate-700 mb-2">שם הקורס</label>
+                        <input 
+                            type="text" 
+                            value={name} 
+                            onChange={(e) => setName(e.target.value)} 
+                            placeholder="מבוא לרובוטיקה ו-AI"
+                            className="w-full bg-slate-50 border-2 border-slate-200 p-4 rounded-2xl outline-none focus:border-purple-500 font-bold text-lg transition-colors"
+                        />
+                    </div>
+
+                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                        <div className="flex justify-between items-end mb-2">
+                            <label className="block font-bold text-slate-700">תיאור וסילבוס</label>
+                            <button 
+                                type="button"
+                                onClick={generateDescriptionWithAI}
+                                disabled={isGenerating}
+                                className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50">
+                                {isGenerating ? 'מייצר קסמים...' : '✨ נסח לי תיאור עם AI'}
+                            </button>
+                        </div>
+                        <textarea 
+                            value={description} 
+                            onChange={(e) => setDescription(e.target.value)} 
+                            rows="6"
+                            placeholder="תאר את הקורס (או תן ל-AI לכתוב עבורך)..."
+                            className="w-full bg-slate-50 border-2 border-slate-200 p-4 rounded-2xl outline-none focus:border-purple-500 transition-colors"
+                        />
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                            <label className="block font-bold text-slate-700 mb-4">שכבות גיל</label>
+                            <div className="flex items-center gap-4">
+                                <div className="flex-1">
+                                    <span className="text-xs text-slate-500 font-bold block mb-1">מכיתה</span>
+                                    <select value={fromGrade} onChange={e => setFromGrade(e.target.value)} className="w-full p-3 rounded-xl border-2 border-slate-200 bg-slate-50 font-bold">
+                                        {[1,2,3,4,5,6,7,8,9,10,11,12].map(g => <option key={g} value={g}>{g}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex-1">
+                                    <span className="text-xs text-slate-500 font-bold block mb-1">עד כיתה</span>
+                                    <select value={toGrade} onChange={e => setToGrade(e.target.value)} className="w-full p-3 rounded-xl border-2 border-slate-200 bg-slate-50 font-bold">
+                                        {[1,2,3,4,5,6,7,8,9,10,11,12].map(g => <option key={g} value={g}>{g}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                            <label className="block font-bold text-slate-700 mb-4">תחומי דעת (תגיות)</label>
+                            <div className="flex flex-wrap gap-2">
+                                {availableFields.map(field => {
+                                    const isSelected = fields.includes(field);
+                                    return (
+                                        <button 
+                                            key={field}
+                                            type="button"
+                                            onClick={() => handleFieldToggle(field)}
+                                            className={`px-3 py-1.5 rounded-full text-sm font-bold border-2 transition-colors ${isSelected ? 'border-purple-600 bg-purple-50 text-purple-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                                            {field
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                            <label className="block font-bold text-slate-700 mb-2">קישור לתמונה (קאבר)</label>
+                            <input 
+                                type="text" 
+                                value={image} 
+                                onChange={(e) => setImage(e.target.value)} 
+                                placeholder="https://..."
+                                className="w-full bg-slate-50 border-2 border-slate-200 p-3 rounded-xl outline-none focus:border-purple-500 text-left" dir="ltr"
+                            />
+                        </div>
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                            <label className="block font-bold text-slate-700 mb-2">קישור לסרטון פרומו</label>
+                            <input 
+                                type="text" 
+                                value={video} 
+                                onChange={(e) => setVideo(e.target.value)} 
+                                placeholder="https://..."
+                                className="w-full bg-slate-50 border-2 border-slate-200 p-3 rounded-xl outline-none focus:border-purple-500 text-left" dir="ltr"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                        <label className="block font-bold text-slate-700 mb-2">שיוך פרטני למוסדות</label>
+                        <p className="text-xs text-slate-500 mb-4 font-medium">אם לא נבחרו מוסדות, הקורס יהיה פתוח לכל המוסדות שהגדרות הגיל ותחומי הדעת שלהם תואמות לקורס.</p>
+                        <div className="max-h-48 overflow-y-auto border-2 border-slate-100 rounded-xl p-2 bg-slate-50 grid grid-cols-2 gap-2">
+                            {institutions.map(inst => (
+                                <label key={inst.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-100 cursor-pointer hover:bg-purple-50 transition-colors">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={assignedInstitutions.includes(inst.id)} 
+                                        onChange={() => handleInstToggle(inst.id)} 
+                                        className="w-5 h-5 accent-purple-600 rounded"
+                                    />
+                                    <span className="font-bold text-slate-700">{inst.name}</span>
+                                </label>
+                            ))}
+                            {(!institutions || institutions.length === 0) && <span className="text-slate-400 font-bold p-2">לא נמצאו מוסדות במערכת.</span>}
+                        </div>
+                    </div>
+
+                </div>
+
+                <div className="bg-white border-t border-slate-100 p-6 flex justify-end gap-4 shrink-0">
+                    <button type="button" onClick={onClose} className="px-8 py-3 rounded-full font-bold text-slate-500 hover:bg-slate-100 transition-colors">
+                        ביטול
+                    </button>
+                    <button 
+                        type="button"
+                        onClick={handleSave} 
+                        disabled={isSaving}
+                        className="bg-slate-900 text-white px-10 py-3 rounded-full font-black text-lg hover:bg-purple-600 transition-colors shadow-xl disabled:opacity-50 flex items-center gap-2">
+                        {isSaving ? 'שומר...' : '💾 שמירת קורס'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
