@@ -1,27 +1,24 @@
 import React, { useState } from 'react';
 import LandingHeader from './LandingHeader';
-import ContactForm from './ContactForm'; // קריאה לטופס החיצוני המהיר
-import AboutView from './AboutView'; // טעינת דפי המידע הפנימיים מתחת לתפריט
-import ThreeBackground from './ThreeBackground'; // החזרת צורות התלת-מימד המקוריות ברקע
+import AboutView from './AboutView'; 
+// ניטרלנו זמנית את התלת-מימד ואת טופס צור קשר כדי למצוא את התקלה
 
 export default function LandingPage({ onLoginClick }) {
-    // ניהול הניווט הפנימי של דף הנחיתה מבלי להעלים את ה-Header העליון
     const [activeTab, setActiveTab] = useState('hero'); 
 
     return (
         <div className="min-h-screen bg-white font-assistant flex flex-col relative overflow-x-hidden w-full" dir="rtl">
-            {/* סרגל הניווט העליון נשאר יציב וקבוע למעלה תמיד */}
             <LandingHeader onLoginClick={onLoginClick} onNavClick={(sec) => setActiveTab(sec)} />
             
-            {/* תוכן העמוד משתנה דינמית מתחת לסרגל הניווט */}
             <div className="flex-grow w-full">
                 {activeTab === 'hero' ? (
-                    /* 1. החזרת דף הבית המקורי: צורות תלת מימד וטקסט בלבד ללא סרטון */
                     <section className="pt-44 pb-20 px-4 max-w-7xl mx-auto flex flex-col items-center justify-center text-center space-y-12 relative min-h-[75vh]">
-                        {/* שכבת צורות תלת המימד המסתובבות ברקע הטקסט */}
-                        <div className="absolute inset-0 z-0 opacity-40 pointer-events-none">
+                        
+                        {/* השכבה הזו הוסתרה זמנית כדי לבדוק אם היא עושה את החושך */}
+                        {/* <div className="absolute inset-0 z-0 opacity-40 pointer-events-none">
                             <ThreeBackground />
-                        </div>
+                        </div> 
+                        */}
 
                         <div className="space-y-6 relative z-10 max-w-4xl mx-auto">
                             <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-slate-900 leading-tight">
@@ -38,15 +35,14 @@ export default function LandingPage({ onLoginClick }) {
                         </div>
                     </section>
                 ) : (
-                    /* 2. רינדור 11 הדפים הפנימיים ישירות מתחת לתפריט הראשי */
                     <div className="pt-32 pb-12">
                         <AboutView section={activeTab} onBack={() => setActiveTab('hero')} />
                     </div>
                 )}
             </div>
 
-            {/* 3. קריאה דינמית לטופס צור קשר מתוך קובץ נפרד לשמירה על מהירות שיא */}
-            <ContactForm />
+            {/* טופס צור קשר הוסתר זמנית לבדיקה */}
+            {/* <ContactForm /> */}
         </div>
     );
 }
